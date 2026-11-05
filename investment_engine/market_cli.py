@@ -61,12 +61,14 @@ def main() -> None:
         result = {"series": store.list_series()}
     elif args.command == "backtest":
         adjustment = "continuous" if args.asset_type == "future" else args.adjustment
-        bars = store.load(args.symbol, args.asset_type, adjustment)
+        as_of = datetime.now(SH)
+        bars = [x for x in store.load(args.symbol, args.asset_type, adjustment)
+                if x.timestamp <= as_of.date().isoformat()]
         result = run_backtest(
             bars, strategy=args.strategy, fast_period=args.fast_period, slow_period=args.slow_period,
-            fee_bps=args.fee_bps, slippage_bps=args.slippage_bps,
+            fee_bps=args.fee_bps, slippage_bps=args.slippage_bps, as_of=as_of.date(),
         )
-        result["as_of"] = datetime.now(SH).isoformat()
+        result["as_of"] = as_of.isoformat()
         target = Path(args.out)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -117,7 +117,7 @@ class MarketDataStore:
             raise MarketDataError("Invalid symbol")
         return self.root / f"{asset_type}_{symbol}_{adjustment}.csv"
 
-    def save(self, bars: Iterable[Bar]) -> Path:
+    def save(self, bars: Iterable[Bar], *, as_of: date | None = None) -> Path:
         rows = list(bars)
         if not rows:
             raise MarketDataError("Provider returned no bars")
@@ -132,7 +132,7 @@ class MarketDataStore:
                 raise MarketDataError("Cannot mix symbols, asset types or adjustments in one series")
             merged[row.timestamp] = row
         ordered = [merged[key] for key in sorted(merged)]
-        quality = validate_bars(ordered)
+        quality = validate_bars(ordered, as_of=as_of)
         if not quality["valid"]:
             raise MarketDataError("Refusing to persist invalid series: " + "; ".join(quality["errors"][:3]))
         tmp = path.with_suffix(".csv.tmp")
@@ -277,11 +277,11 @@ class MarketDataService:
             raise
         except Exception as exc:
             raise MarketDataError(f"AKShare request failed: {type(exc).__name__}") from exc
-        path = self.store.save(bars)
+        end = date.fromisoformat(end_date.replace("/", "-")) if "-" in end_date else datetime.strptime(end_date, "%Y%m%d").date()
+        path = self.store.save(bars, as_of=end)
         stored_adjustment = "continuous" if asset_type == "future" else adjustment
         all_bars = self.store.load(symbol, asset_type, stored_adjustment)
-        as_of = date.fromisoformat(end_date.replace("/", "-")) if "-" in end_date else datetime.strptime(end_date, "%Y%m%d").date()
-        quality = validate_bars(all_bars, as_of=as_of)
+        quality = validate_bars(all_bars, as_of=end)
         return {
             "symbol": symbol, "asset_type": asset_type, "adjustment": stored_adjustment,
             "source": bars[0].source, "fetched_count": len(bars), "stored_count": len(all_bars),

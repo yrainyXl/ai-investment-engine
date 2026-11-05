@@ -44,13 +44,15 @@ ADJUSTMENTS = {"none", "qfq", "hfq", "continuous"}
 
 
 def _finite_number(value: Any, field: str, *, optional: bool = False) -> float | None:
-    if value is None or value == "":
+    if value is None or (isinstance(value, str) and not value.strip()):
         if optional:
             return None
         raise MarketDataError(f"Missing {field}")
     try:
         number = float(value)
     except (TypeError, ValueError) as exc:
+        if optional:
+            return None
         raise MarketDataError(f"Invalid {field}") from exc
     if not math.isfinite(number):
         if optional:

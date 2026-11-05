@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from investment_engine.market_data import Bar, MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars, validate_bars
+from investment_engine.market_data import AKShareProvider, Bar, MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars, validate_bars
 
 
 def make_bar(day, close=10.0, **kwargs):
@@ -97,3 +97,56 @@ def test_intraday_as_of_excludes_unfinished_same_day_bar():
 def test_completed_daily_bars_requires_timezone():
     with pytest.raises(MarketDataError):
         completed_daily_bars([], as_of=datetime(2026, 11, 5, 16, 0))
+
+
+class FakeFrame:
+    def __init__(self, rows):
+        self.rows = rows
+        self.empty = not rows
+    def to_dict(self, orient):
+        assert orient == "records"
+        return self.rows
+
+
+def test_akshare_stock_adapter_normalizes_eastmoney_fields():
+    class FakeAK:
+        def stock_zh_a_hist(self, **kwargs):
+            assert kwargs["symbol"] == "601118"
+            assert kwargs["adjust"] == "qfq"
+            return FakeFrame([{
+                "日期": "2026-11-04", "开盘": 7.2, "最高": 7.4, "最低": 7.1,
+                "收盘": 7.3, "成交量": 1234, "成交额": 900000,
+            }])
+    provider = AKShareProvider.__new__(AKShareProvider)
+    provider.ak = FakeAK()
+    bars = provider.fetch(
+        symbol="601118", asset_type="stock", start_date="20261101",
+        end_date="20261105", adjustment="qfq",
+    )
+    assert len(bars) == 1
+    assert bars[0].close == 7.3
+    assert bars[0].source == "akshare.eastmoney.stock_zh_a_hist"
+    assert bars[0].volume_unit == "lots"
+
+
+def test_akshare_futures_adapter_uses_continuous_contract_and_date_filter():
+    class FakeAK:
+        def futures_zh_daily_sina(self, **kwargs):
+            assert kwargs == {"symbol": "RU0"}
+            return FakeFrame([
+                {"date": "2026-11-04", "open": 16000, "high": 16100,
+                 "low": 15900, "close": 16050, "volume": 12345},
+                {"date": "2026-11-06", "open": 16100, "high": 16200,
+                 "low": 16000, "close": 16150, "volume": 23456},
+            ])
+    provider = AKShareProvider.__new__(AKShareProvider)
+    provider.ak = FakeAK()
+    bars = provider.fetch(
+        symbol="RU0", asset_type="future", start_date="20261101",
+        end_date="20261105", adjustment="continuous",
+    )
+    assert len(bars) == 1
+    assert bars[0].timestamp == "2026-11-04"
+    assert bars[0].adjustment == "continuous"
+    assert bars[0].exchange == "SHFE"
+    assert bars[0].volume_unit == "contracts"

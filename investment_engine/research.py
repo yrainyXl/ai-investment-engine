@@ -140,15 +140,23 @@ def assess_hypotheses(evidence: dict[str, Any] | None, *, as_of: datetime) -> di
 def build_research_snapshot(*, strategy_id: str, symbol: str, thesis_content: Any,
                              stock_bars: Sequence[Bar], futures_symbol: str | None = None,
                              futures_bars: Sequence[Bar] = (), evidence: dict[str, Any] | None = None,
+                             strategy_name: str | None = None, thesis_updated_at: str | None = None,
+                             account_summary: dict[str, Any] | None = None,
                              as_of: datetime) -> dict[str, Any]:
     stock_summary = summarize_price_series(stock_bars)
     futures_summary = summarize_price_series(futures_bars)
     return {
         "schema_version": "0.2",
         "strategy_id": strategy_id,
+        "strategy_name": strategy_name,
         "symbol": symbol,
         "as_of": as_of.isoformat(),
-        "thesis_excerpt": flatten_tiptap(thesis_content)[:1200],
+        "account_summary": account_summary or {},
+        "thesis": {
+            "available": bool(thesis_content),
+            "updated_at": thesis_updated_at,
+            "excerpt": flatten_tiptap(thesis_content)[:1200],
+        },
         "market_observations": {
             "equity": stock_summary,
             "commodity_reference": {

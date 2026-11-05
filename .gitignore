@@ -11,3 +11,9 @@ build/
 output/*
 !output/.gitkeep
 *.log
+
+# Local market data cache and research outputs
+/data/
+data/
+output/
+*.parquet

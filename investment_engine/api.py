@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 from hmac import compare_digest
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -132,7 +133,7 @@ def list_market_data(authorization: str | None = Header(default=None)):
 @app.post("/v1/market-data/sync")
 def sync_market_data(req: MarketSyncRequest, authorization: str | None = Header(default=None)):
     _authorize(authorization)
-    end_date = req.end_date or datetime.now().astimezone().date().isoformat()
+    end_date = req.end_date or datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
     try:
         return MarketDataService(store=_store()).sync(
             symbol=req.symbol, asset_type=req.asset_type, start_date=req.start_date,

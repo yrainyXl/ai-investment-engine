@@ -9,7 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .backtest import run_backtest
-from .market_data import MarketDataError, MarketDataService, MarketDataStore
+from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient
 from .research import build_research_snapshot
 
@@ -62,8 +62,7 @@ def main() -> None:
     elif args.command == "backtest":
         adjustment = "continuous" if args.asset_type == "future" else args.adjustment
         as_of = datetime.now(SH)
-        bars = [x for x in store.load(args.symbol, args.asset_type, adjustment)
-                if x.timestamp <= as_of.date().isoformat()]
+        bars = completed_daily_bars(store.load(args.symbol, args.asset_type, adjustment), as_of=as_of)
         result = run_backtest(
             bars, strategy=args.strategy, fast_period=args.fast_period, slow_period=args.slow_period,
             fee_bps=args.fee_bps, slippage_bps=args.slippage_bps, as_of=as_of.date(),
@@ -103,8 +102,8 @@ def main() -> None:
             "currency": account.get("currency"), "cash": account.get("cash"), "equity": account.get("equity"),
             "holdings": [{"symbol": item.get("symbol"), "quantity": item.get("quantity")} for item in holdings],
         }
-        stock_bars = [x for x in store.load(symbol, "stock", "qfq") if x.timestamp <= as_of.date().isoformat()]
-        futures_bars = [x for x in store.load(args.futures_symbol, "future", "continuous") if x.timestamp <= as_of.date().isoformat()]
+        stock_bars = completed_daily_bars(store.load(symbol, "stock", "qfq"), as_of=as_of)
+        futures_bars = completed_daily_bars(store.load(args.futures_symbol, "future", "continuous"), as_of=as_of)
         evidence = json.loads(Path(args.evidence).read_text(encoding="utf-8")) if args.evidence else None
         result = build_research_snapshot(
             strategy_id=strategy_id, symbol=symbol, thesis_content=thesis_content,

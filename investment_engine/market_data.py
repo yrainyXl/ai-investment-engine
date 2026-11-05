@@ -53,6 +53,8 @@ def _finite_number(value: Any, field: str, *, optional: bool = False) -> float |
     except (TypeError, ValueError) as exc:
         raise MarketDataError(f"Invalid {field}") from exc
     if not math.isfinite(number):
+        if optional:
+            return None
         raise MarketDataError(f"Non-finite {field}")
     return number
 

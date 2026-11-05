@@ -279,7 +279,10 @@ class MarketDataService:
         provider = self.provider or AKShareProvider()
         stored_adjustment = "continuous" if asset_type == "future" else adjustment
         cached = self.store.load(symbol, asset_type, stored_adjustment)
-        requested_start = _iso_date(start_date)
+        try:
+            requested_start = _iso_date(start_date)
+        except (TypeError, ValueError) as exc:
+            raise MarketDataError("Invalid start_date") from exc
         effective_start = requested_start
         if cached:
             cached_start = cached[0].timestamp

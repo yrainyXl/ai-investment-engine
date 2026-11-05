@@ -51,6 +51,8 @@ def main() -> None:
         return
 
     if args.all_active:
+        if args.evidence or args.bars:
+            parser.error("--all-active cannot reuse one evidence/bars file across different strategies")
         entries = client.active_strategies()
         if not entries:
             parser.error("No active OTW strategies returned; refusing an empty batch")

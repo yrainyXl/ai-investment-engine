@@ -95,14 +95,23 @@ def main() -> None:
             symbol = symbols[0]
         matched = next((item for item in holdings if str(item.get("symbol")) == symbol), None)
         thesis = client.asset_thesis(strategy_id, matched["id"]) if matched and matched.get("id") else None
-        thesis_content = thesis.get("document", {}).get("content", {}) if thesis else {}
+        thesis_document = thesis.get("document", {}) if thesis else {}
+        thesis_content = thesis_document.get("content", {})
+        strategy = context.get("strategy", {})
+        account = context.get("account", {})
+        account_summary = {
+            "currency": account.get("currency"), "cash": account.get("cash"), "equity": account.get("equity"),
+            "holdings": [{"symbol": item.get("symbol"), "quantity": item.get("quantity")} for item in holdings],
+        }
         stock_bars = [x for x in store.load(symbol, "stock", "qfq") if x.timestamp <= as_of.date().isoformat()]
         futures_bars = [x for x in store.load(args.futures_symbol, "future", "continuous") if x.timestamp <= as_of.date().isoformat()]
         evidence = json.loads(Path(args.evidence).read_text(encoding="utf-8")) if args.evidence else None
         result = build_research_snapshot(
             strategy_id=strategy_id, symbol=symbol, thesis_content=thesis_content,
             stock_bars=stock_bars, futures_symbol=args.futures_symbol,
-            futures_bars=futures_bars, evidence=evidence, as_of=as_of,
+            futures_bars=futures_bars, evidence=evidence,
+            strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
+            account_summary=account_summary, as_of=as_of,
         )
     if args.command in ("sync", "research"):
         out_path = getattr(args, "out", None)

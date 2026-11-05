@@ -41,3 +41,33 @@ def test_price_evidence_does_not_fill_inventory_or_profit_gates():
     }]}, as_of=AS_OF)
     assert result["checks"]["multiweek_inventory_trend"]["missing"] is True
     assert result["checks"]["profit_pass_through"]["missing"] is True
+
+
+def test_legacy_factor_requires_all_point_in_time_timestamps():
+    result = assess_hypotheses({
+        "factors": {
+            "actual_supply_change": {
+                "state": "supporting",
+                "source_url": "https://example.com/source",
+                "published_at": "2026-11-01T00:00:00Z",
+                "reviewed_by_human": True,
+            }
+        }
+    }, as_of=AS_OF)
+    assert result["checks"]["actual_supply_change"]["status"] == "unknown"
+
+
+def test_legacy_factor_with_complete_provenance_can_be_assessed():
+    result = assess_hypotheses({
+        "factors": {
+            "actual_supply_change": {
+                "state": "supporting",
+                "source_url": "https://example.com/source",
+                "published_at": "2026-11-01T00:00:00Z",
+                "effective_at": "2026-11-01T00:00:00Z",
+                "retrieved_at": "2026-11-02T00:00:00Z",
+                "reviewed_by_human": True,
+            }
+        }
+    }, as_of=AS_OF)
+    assert result["checks"]["actual_supply_change"]["status"] == "supporting"

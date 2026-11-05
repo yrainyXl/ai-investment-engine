@@ -143,6 +143,7 @@ assessment 只能由人审阅后标为 supporting 或 contradicting。证据发�
 - POST /v1/backtests/run：运行 SMA/买入持有回测。
 - POST /v1/research/preview：读取 OTW 假设文档并生成研究快照。
 - GET /v1/reports：列出已保存的研究快照和回测报告。
+- GET /v1/reports/{report_id}：读取指定报告的完整内容。
 
 示例：
 

@@ -271,6 +271,9 @@ class MarketDataService:
 
     def sync(self, *, symbol: str, asset_type: str, start_date: str, end_date: str,
              adjustment: str = "qfq") -> dict[str, Any]:
+        provider_name = os.getenv("MARKET_DATA_PROVIDER", "akshare").lower()
+        if self.provider is None and provider_name != "akshare":
+            raise MarketDataError(f"Unsupported MARKET_DATA_PROVIDER: {provider_name}")
         provider = self.provider or AKShareProvider()
         try:
             bars = provider.fetch(symbol=symbol, asset_type=asset_type, start_date=start_date,

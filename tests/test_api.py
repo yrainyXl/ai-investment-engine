@@ -68,3 +68,12 @@ def test_backtest_endpoint_returns_insufficient_history(monkeypatch, tmp_path):
         headers={"Authorization": "Bearer test-api-token"},
     )
     assert response.status_code == 422
+
+
+def test_report_listing_requires_token_and_returns_empty(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
+    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
+    assert client.get("/v1/reports").status_code == 401
+    response = client.get("/v1/reports", headers={"Authorization": "Bearer test-api-token"})
+    assert response.status_code == 200
+    assert response.json()["reports"] == []

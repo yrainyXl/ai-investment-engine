@@ -198,8 +198,6 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
                 raise HTTPException(409, "Specify symbol when the OTW strategy has zero or multiple holdings")
             symbol = symbols[0]
         matched = next((x for x in holdings if str(x.get("symbol")) == symbol), None)
-        if not matched and len(holdings) == 1:
-            matched = holdings[0]
         asset_id = matched.get("id") if matched else None
         thesis = client.asset_thesis(strategy_id, asset_id) if asset_id else None
         thesis_content = thesis.get("document", {}).get("content", {}) if thesis else {}

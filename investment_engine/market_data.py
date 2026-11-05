@@ -275,8 +275,16 @@ class MarketDataService:
         if self.provider is None and provider_name != "akshare":
             raise MarketDataError(f"Unsupported MARKET_DATA_PROVIDER: {provider_name}")
         provider = self.provider or AKShareProvider()
+        stored_adjustment = "continuous" if asset_type == "future" else adjustment
+        cached = self.store.load(symbol, asset_type, stored_adjustment)
+        effective_start = start_date
+        if cached:
+            cached_start = cached[0].timestamp
+            requested_start = _iso_date(start_date)
+            if cached_start < requested_start:
+                effective_start = cached_start
         try:
-            bars = provider.fetch(symbol=symbol, asset_type=asset_type, start_date=start_date,
+            bars = provider.fetch(symbol=symbol, asset_type=asset_type, start_date=effective_start,
                                   end_date=end_date, adjustment=adjustment)
         except MarketDataError:
             raise
@@ -284,12 +292,12 @@ class MarketDataService:
             raise MarketDataError(f"AKShare request failed: {type(exc).__name__}") from exc
         end = date.fromisoformat(end_date.replace("/", "-")) if "-" in end_date else datetime.strptime(end_date, "%Y%m%d").date()
         path = self.store.save(bars, as_of=end)
-        stored_adjustment = "continuous" if asset_type == "future" else adjustment
         all_bars = self.store.load(symbol, asset_type, stored_adjustment)
         quality = validate_bars(all_bars, as_of=end)
         return {
             "symbol": symbol, "asset_type": asset_type, "adjustment": stored_adjustment,
-            "source": bars[0].source, "fetched_count": len(bars), "stored_count": len(all_bars),
+            "source": bars[0].source, "requested_start_date": start_date,
+            "effective_refresh_start_date": effective_start, "fetched_count": len(bars), "stored_count": len(all_bars),
             "first_bar": all_bars[0].timestamp if all_bars else None,
             "last_bar": all_bars[-1].timestamp if all_bars else None,
             "quality": quality, "storage_file": path.name,

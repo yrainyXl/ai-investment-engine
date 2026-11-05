@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from investment_engine.market_data import Bar, MarketDataError, MarketDataStore, validate_bars
+from investment_engine.market_data import Bar, MarketDataError, MarketDataService, MarketDataStore, validate_bars
 
 
 def make_bar(day, close=10.0, **kwargs):
@@ -52,3 +52,30 @@ def test_store_rejects_invalid_symbol(tmp_path):
     store = MarketDataStore(tmp_path)
     with pytest.raises(MarketDataError):
         store.load("../secret", "stock", "qfq")
+
+
+def test_sync_refreshes_from_oldest_cached_adjusted_bar(tmp_path):
+    store = MarketDataStore(tmp_path)
+    first = date(2026, 1, 5)
+    store.save([make_bar(first, 10)])
+    class Provider:
+        def __init__(self):
+            self.start_date = None
+        def fetch(self, **kwargs):
+            self.start_date = kwargs["start_date"]
+            return [make_bar(first, 11), make_bar(first + timedelta(days=1), 12)]
+    provider = Provider()
+    result = MarketDataService(store=store, provider=provider).sync(
+        symbol="601118", asset_type="stock", start_date="20260106",
+        end_date="20260106", adjustment="qfq",
+    )
+    assert provider.start_date == "2026-01-05"
+    assert result["effective_refresh_start_date"] == "2026-01-05"
+    assert store.load("601118", "stock", "qfq")[0].close == 11
+
+
+def test_store_refuses_future_rows_when_as_of_is_supplied(tmp_path):
+    store = MarketDataStore(tmp_path)
+    future = make_bar(date(2027, 1, 1))
+    with pytest.raises(MarketDataError):
+        store.save([future], as_of=date(2026, 11, 5))

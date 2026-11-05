@@ -241,3 +241,15 @@ def list_reports(kind: str | None = None, limit: int = 50,
         return {"reports": _reports().list(kind=kind, limit=limit)}
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/v1/reports/{report_id}")
+def get_report(report_id: str, authorization: str | None = Header(default=None)):
+    _authorize(authorization)
+    try:
+        report = _reports().get(report_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if report is None:
+        raise HTTPException(404, "Report not found")
+    return report

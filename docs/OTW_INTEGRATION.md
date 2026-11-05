@@ -40,3 +40,20 @@
 - CLI `--list-strategies` 列出全部可见模拟策略；`--all-active` 只读遍历 active 策略（不发送 OTW POST、PUT 或任何模拟订单）。
 - 在后续版本中引入独立的**策略运行注册表**，区分 OTW 的模拟投资账户 ID 与研究算法策略 ID。新发现的模拟账户应默认处于未启用自动交易状态，只有完成研究算法、历史数据、风险规则绑定与审批后才允许自动执行。
 - v0.1 的每次分析仍仅支持单标的，遇到多资产组合明确报错，避免把首只资产的分析误认为整个账户的结论。
+
+
+## v0.2 MCP 传输与研究集成
+
+当前服务器已验证的鉴权方式是 OTW MCP：REST 的 paper-trading 端点只接受 session cookie，而服务器只读 MCP Token 通过 Bearer 访问 /api/mcp。引擎使用 OTW_TRANSPORT=mcp 时，仅发送 JSON-RPC tools/call → otw_read，读取以下路径：
+
+- /api/paper-trading/strategies
+- /api/paper-trading/strategies/{id}/context
+- /api/paper-trading/strategies/{id}/documents/{asset_id}
+
+引擎不调用 otw_write 或 otw_compute。MCP Token 仍只需 paper-trading read 权限。
+
+市场数据由独立 AKShare provider 获取并写入引擎自身的数据目录，不写入 OTW histdata。A 股 601118 使用 stock_zh_a_hist；ETF 使用 fund_etf_hist_em；期货参考序列使用 futures_zh_daily_sina。数据来源、抓取时间和复权口径随每根 Bar 保存。
+
+研究 API POST /v1/research/preview 读取 OTW 策略和对应标的全局策略文档，再关联本地已缓存的日线数据。回测 API POST /v1/backtests/run 只使用引擎本地历史数据。以上 POST 都是引擎自身的研究 API，不是 OTW 写入接口。
+
+**数据边界：** RU0 主力连续序列不是可交割单一合约，也不是海南橡胶实际采购/销售结算价；A 股 OHLCV 不能证明天然橡胶实体供需、库存变化或公司利润传导。上述假设仍需要独立、带时间戳和来源的基本面证据。

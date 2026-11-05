@@ -1,9 +1,9 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
-from investment_engine.market_data import Bar, MarketDataError, MarketDataService, MarketDataStore, validate_bars
+from investment_engine.market_data import Bar, MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars, validate_bars
 
 
 def make_bar(day, close=10.0, **kwargs):
@@ -79,3 +79,21 @@ def test_store_refuses_future_rows_when_as_of_is_supplied(tmp_path):
     future = make_bar(date(2027, 1, 1))
     with pytest.raises(MarketDataError):
         store.save([future], as_of=date(2026, 11, 5))
+
+
+def test_intraday_as_of_excludes_unfinished_same_day_bar():
+    previous = make_bar(date(2026, 11, 4), 10)
+    current = make_bar(date(2026, 11, 5), 11)
+    before_close = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    after_close = datetime(2026, 11, 5, 7, 5, tzinfo=timezone.utc)  # 15:05 Shanghai
+    assert [x.timestamp for x in completed_daily_bars([previous, current], as_of=before_close)] == [
+        "2026-11-04"
+    ]
+    assert [x.timestamp for x in completed_daily_bars([previous, current], as_of=after_close)] == [
+        "2026-11-04", "2026-11-05"
+    ]
+
+
+def test_completed_daily_bars_requires_timezone():
+    with pytest.raises(MarketDataError):
+        completed_daily_bars([], as_of=datetime(2026, 11, 5, 16, 0))

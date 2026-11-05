@@ -31,7 +31,7 @@ The data directory is gitignored and must not be committed.
 
 ## Deploy
 
-Read and follow [HARNESS_DEPLOY_TASK.md](HARNESS_DEPLOY_TASK.md). The current development branch is feat/phase2-market-data-backtesting. Do not overwrite the deployed v0.1.1 local branch or discard its local commits; preserve a backup branch before switching.
+Read and follow [HARNESS_DEPLOY_TASK.md](HARNESS_DEPLOY_TASK.md). Merge PR #1 first, then deploy from origin/main. Do not overwrite the deployed v0.1.1 local branch or discard its local commits; preserve a backup branch and create a separate deploy/v0.2 branch from origin/main.
 
 ~~~bash
 docker compose config --quiet

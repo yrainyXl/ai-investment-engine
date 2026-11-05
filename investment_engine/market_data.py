@@ -292,7 +292,6 @@ class MarketDataService:
             raise
         except Exception as exc:
             raise MarketDataError(f"AKShare request failed: {type(exc).__name__}") from exc
-        end = date.fromisoformat(end_date.replace("/", "-")) if "-" in end_date else datetime.strptime(end_date, "%Y%m%d").date()
         path = self.store.save(bars)
         all_bars = self.store.load(symbol, asset_type, stored_adjustment)
         quality = validate_bars(all_bars)

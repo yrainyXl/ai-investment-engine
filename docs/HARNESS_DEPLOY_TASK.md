@@ -68,11 +68,11 @@ curl --fail http://127.0.0.1:8018/healthz
 ~~~bash
 docker compose exec -T engine python -m investment_engine.market_cli sync \
   --asset-type stock --symbol 601118 \
-  --start-date 20180101 --end-date 20261105 --adjustment qfq
+  --start-date 20180101 --adjustment qfq
 
 docker compose exec -T engine python -m investment_engine.market_cli sync \
   --asset-type future --symbol RU0 \
-  --start-date 20180101 --end-date 20261105 --adjustment continuous
+  --start-date 20180101 --adjustment continuous
 
 docker compose exec -T engine python -m investment_engine.market_cli list
 ~~~

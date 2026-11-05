@@ -34,11 +34,18 @@ python -m pytest -q
 ```bash
 export OTW_BASE_URL='https://<你的OTW域名>'
 export OTW_API_TOKEN='<服务器端可用的只读Token>'
-export OTW_STRATEGY_ID='<现有模拟策略UUID>'
+python -m investment_engine.cli --source otw --list-strategies
+# 当前只有一个 active 策略时可自动选择：
 python -m investment_engine.cli --source otw --out output/live-preview.json
+# 多个 active 策略时，请显式选择：
+python -m investment_engine.cli --source otw --strategy-id '<从列表获取的UUID>' --out output/one-preview.json
+# 或者以只读方式批量预览全部 active 策略：
+python -m investment_engine.cli --source otw --all-active --out output/all-active.json
 ```
 
 注意：已在 ChatGPT MCP 连接里能调用 OTW，**并不能证明本地这个 HTTP Token 已配置或有相同权限**；本地 HTTP 鉴权需由你在服务器上核实。不应把 ChatGPT 内部凭证复制进仓库。失败只会报错，不会回退到记忆或模拟数据伪装成功。
+
+策略 ID 不再属于服务端固定配置：引擎通过 OTW `GET /api/paper-trading/strategies` 动态发现。HTTP 端点 `GET /v1/strategies` 需要 `ENGINE_API_TOKEN` 鉴权，`POST /v1/analysis/preview` 可以通过请求体传入 `strategy_id`。未提供 ID 时只允许唯一的 active 策略自动选择；多个 active 策略要求明确 ID，避免误用账户。批量预览使用 CLI 的 `--all-active`，不自动下单，也不允许同一份证据/日线文件套用到不同策略。
 
 可选：`--evidence fixtures/evidence.template.json` 提供待审阅的基本面证据；`--bars path/to/daily.csv` 提供本地日线 (`date,close`) 以计算均线。没有历史数据时明确输出 `unavailable`，**不会制造回测收益**。
 
@@ -62,7 +69,7 @@ curl -s -X POST http://127.0.0.1:8018/v1/analysis/preview \
 
 ## 当前覆盖范围
 
-v0.1 专注于单标的海南橡胶策略。跨资产、多持仓的全局文档匹配、定时任务迁移、性能比较及真正的 AI/策略回测属于后续阶段。`account_summary.reference_price` 只代表 OTW 参考报价，**不等于已核验的交易所收盘价或可执行成交价**。
+v0.1 已支持读取和遍历多个 OTW 模拟策略，但单次研究仍只支持单标的。对于一个策略内存在多个资产的情况会拒绝输出，防止拿第一只资产冒充完整组合分析。跨资产、多持仓的全局文档匹配、定时任务迁移、性能比较及真正的 AI/策略回测属于后续阶段。`account_summary.reference_price` 只代表 OTW 参考报价，**不等于已核验的交易所收盘价或可执行成交价**。
 
 服务器部署由 DeepSeek Harness 执行时，优先阅读 [docs/HARNESS_DEPLOY_TASK.md](docs/HARNESS_DEPLOY_TASK.md)；Docker Compose 的最小部署方式见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 

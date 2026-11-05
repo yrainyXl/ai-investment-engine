@@ -72,7 +72,8 @@ class OTWReadClient:
             }
             envelope = self._request(self.base_url + "/api/mcp", rpc)
             if envelope.get("error"):
-                message = str(envelope.get("error", {}).get("message", ""))
+                error_value = envelope.get("error")
+                message = str(error_value.get("message", "")) if isinstance(error_value, dict) else str(error_value)
                 raise OTWError("HTTP 404: resource not found" if "404" in message else "OTW MCP returned a JSON-RPC error")
             result_block = envelope.get("result")
             if not isinstance(result_block, dict):

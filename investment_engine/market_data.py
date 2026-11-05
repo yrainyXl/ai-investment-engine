@@ -220,7 +220,7 @@ class AKShareProvider:
                 symbol=symbol, period="daily", start_date=start.strftime("%Y%m%d"),
                 end_date=end.strftime("%Y%m%d"), adjust="" if adjustment == "none" else adjustment,
             )
-            source, exchange, volume_unit = "akshare.eastmoney.fund_etf_hist_em", _exchange(symbol), "lots"
+            source, exchange, volume_unit = "akshare.eastmoney.fund_etf_hist_em", _exchange(symbol), "provider_units"
             mapper = lambda r: (r["日期"], r["开盘"], r["最高"], r["最低"], r["收盘"], r["成交量"], r.get("成交额"))
         else:
             frame = self.ak.futures_zh_daily_sina(symbol=symbol)

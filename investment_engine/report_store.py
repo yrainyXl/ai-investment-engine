@@ -36,6 +36,19 @@ class ReportStore:
         temporary.replace(path)
         return {"report_id": report_id, "created_at": created_at, "path": str(path.relative_to(self.root))}
 
+    def get(self, report_id: str) -> dict[str, Any] | None:
+        if not re.fullmatch(r"[0-9a-f]{32}", report_id):
+            raise ValueError("Invalid report id")
+        base = self.root / "reports"
+        matches = list(base.glob(f"*/{report_id}.json"))
+        if not matches:
+            return None
+        try:
+            payload = json.loads(matches[0].read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
     def list(self, kind: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         if kind is not None and not re.fullmatch(r"[a-z][a-z0-9_-]{0,30}", kind):
             raise ValueError("Invalid report kind")

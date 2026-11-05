@@ -16,6 +16,7 @@ from .market_data import MarketDataError, MarketDataService, MarketDataStore
 from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
 from .research import build_research_snapshot
+from .report_store import ReportStore
 
 app = FastAPI(title="AI Investment Engine", version="0.2.0")
 
@@ -72,6 +73,10 @@ def _otw_client() -> OTWReadClient:
 
 def _store() -> MarketDataStore:
     return MarketDataStore(os.getenv("ENGINE_DATA_DIR", "data"))
+
+
+def _reports() -> ReportStore:
+    return ReportStore(os.getenv("ENGINE_DATA_DIR", "data"))
 
 
 def _as_of(value: str | None) -> datetime:
@@ -179,6 +184,7 @@ def backtest(req: BacktestRequest, authorization: str | None = Header(default=No
         )
         report["data"]["adjustment"] = adjustment
         report["as_of"] = as_of.isoformat()
+        report["saved_report"] = _reports().save("backtests", req.symbol, report)
         return report
     except (MarketDataError, BacktestError) as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -214,12 +220,24 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
         stock_bars = [x for x in stock_bars if x.timestamp <= as_of.date().isoformat()]
         futures_bars = _store().load(req.futures_symbol, "future", "continuous") if req.futures_symbol else []
         futures_bars = [x for x in futures_bars if x.timestamp <= as_of.date().isoformat()]
-        return build_research_snapshot(
+        report = build_research_snapshot(
             strategy_id=strategy_id, symbol=symbol, thesis_content=thesis_content,
             stock_bars=stock_bars, futures_symbol=req.futures_symbol,
             futures_bars=futures_bars, evidence=req.evidence,
             strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
             account_summary=account_summary, as_of=as_of,
         )
+        report["saved_report"] = _reports().save("research", strategy_id, report)
+        return report
     except OTWError as exc:
         raise HTTPException(422, "OTW research context unavailable") from exc
+
+
+@app.get("/v1/reports")
+def list_reports(kind: str | None = None, limit: int = 50,
+                 authorization: str | None = Header(default=None)):
+    _authorize(authorization)
+    try:
+        return {"reports": _reports().list(kind=kind, limit=limit)}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc

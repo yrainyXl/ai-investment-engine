@@ -99,10 +99,14 @@ def assess_hypotheses(evidence: dict[str, Any] | None, *, as_of: datetime) -> di
         explicit = factors.get(name, {}) if isinstance(factors, dict) else {}
         if isinstance(explicit, dict):
             published = parse_time(explicit.get("published_at"))
+            effective = parse_time(explicit.get("effective_at"))
+            retrieved = parse_time(explicit.get("retrieved_at"))
             url = explicit.get("source_url")
             valid = (
-                explicit.get("reviewed_by_human") is True and published is not None
-                and published <= as_of and isinstance(url, str) and url.startswith("https://")
+                explicit.get("reviewed_by_human") is True
+                and published is not None and effective is not None and retrieved is not None
+                and published <= as_of and effective <= as_of and retrieved <= as_of
+                and isinstance(url, str) and url.startswith("https://")
                 and explicit.get("state") in ("supporting", "contradicting")
             )
         else:

@@ -11,6 +11,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Any, Iterable
 
 
@@ -107,6 +108,24 @@ def validate_bars(bars: Iterable[Bar], *, as_of: date | None = None) -> dict[str
         "last_bar": rows[-1].timestamp if rows else None,
         "errors": errors[:50], "warnings": warnings[:50], "warning_count": len(warnings),
     }
+
+
+def completed_daily_bars(bars: Iterable[Bar], *, as_of: datetime) -> list[Bar]:
+    """Exclude today's daily candle until the mainland day session has closed."""
+    if as_of.tzinfo is None:
+        raise MarketDataError("as_of must include a timezone")
+    local = as_of.astimezone(ZoneInfo("Asia/Shanghai"))
+    close_cutoff_minutes = 15 * 60 + 5
+    market_minutes = local.hour * 60 + local.minute
+    result: list[Bar] = []
+    for bar in bars:
+        try:
+            day = date.fromisoformat(bar.timestamp[:10])
+        except ValueError as exc:
+            raise MarketDataError("Invalid bar timestamp") from exc
+        if day < local.date() or (day == local.date() and market_minutes >= close_cutoff_minutes):
+            result.append(bar)
+    return result
 
 
 class MarketDataStore:

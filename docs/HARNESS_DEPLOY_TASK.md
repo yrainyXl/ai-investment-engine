@@ -57,7 +57,7 @@ docker run --rm --network none ai-investment-engine:0.1 \
 - `ENGINE_MODE=preview`。
 - `OTW_BASE_URL` 指向**引擎容器内部实际可访问**的 OTW HTTPS API 地址。注意：Docker 容器里的 `127.0.0.1` 指向容器自身，而不是宿主机；不要盲目使用宿主机回环地址。若需要 Docker 内网 HTTP/专用 CA，先提交网络与证书适配方案供审核，不能临时关闭 TLS 或放宽客户端传输检查。
 - `OTW_API_TOKEN` 由 OTW 管理端生成或安全注入，应限制到本策略所需的**只读**范围；如果当前服务端没有相应的 token/权限，停止真实数据联调并报告，不应复用不明来源的凭证。
-- `OTW_STRATEGY_ID` 使用 OTW 现有“ai chatgpt海南个股投资”模拟策略 ID，不创建新策略。
+- **不需要配置 `OTW_STRATEGY_ID`。** 引擎通过 `GET /api/paper-trading/strategies` 动态获取策略列表；单次预览可在请求体传入 `strategy_id`。
 - `ENGINE_API_TOKEN` 为单独生成的高强度随机密钥，仅控制对本引擎预览 API 的访问；它与 `OTW_API_TOKEN` **必须不同**。
 - `.env` 文件、内部网络地址、服务器主机信息和用户数据不提交 GitHub。
 
@@ -94,10 +94,16 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ```bash
 docker compose exec -T engine python -m investment_engine.cli \
+  --source otw --list-strategies
+# 如只有一个 active 策略，以下命令自动选中：
+docker compose exec -T engine python -m investment_engine.cli \
   --source otw --out /tmp/otw-preview.json
+# 如果有多个 active 策略，可以用 --strategy-id <UUID> 指定，或者运行只读批量预览：
+docker compose exec -T engine python -m investment_engine.cli \
+  --source otw --all-active --out /tmp/all-active-preview.json
 ```
 
-核对：`source=otw`、目标策略 ID、现金和持仓数量、全局策略文档更新时间，与 OTW 前台一致；量化数据缺失则输出 unavailable，不能伪造历史数据。若服务器返回 401/403、DNS/TLS 失败或错误数据，按失败报告处理，不擅自改动 OTW 鉴权或数据。
+核对：`--list-strategies` 实际返回策略列表，且不需要环境变量指定策略 ID；`source=otw`、目标策略 ID、现金和持仓数量、全局策略文档更新时间，与 OTW 前台一致；量化数据缺失则输出 unavailable，不能伪造历史数据。若服务器返回 401/403、DNS/TLS 失败或错误数据，按失败报告处理，不擅自改动 OTW 鉴权或数据。
 
 建议运行前后只读查询 OTW 的 runs 和 orders 总数，确认没有因为 v0.1 产生记录。现有文档、资产和定时任务均保持不变。
 
@@ -121,3 +127,12 @@ docker compose exec -T engine python -m investment_engine.cli \
 2. 不部署反向代理、公网入口、MCP remote executor、ChatGPT → Harness 自动任务派发。
 3. 不创建定时任务或启用任何自动订单。
 4. 不请求服务器 root 全局控制权；只使用部署所需最小权限。
+
+
+## 动态发现策略的验收（新增）
+
+1. 不得向 `.env` 添加 `OTW_STRATEGY_ID`，也不应把任何策略 UUID 硬编码到镜像中。
+2. 验证 `GET /v1/strategies` 未授权拒绝、携带有效 `ENGINE_API_TOKEN` 后返回 OTW 已有策略及其状态。
+3. 若只有一个 active 策略，单次预览不传策略 ID 应自动选中该策略；若有多个 active，必须传 `strategy_id` 或使用 `--all-active` 批量只读预览。
+4. 不要把自动发现解释为自动启用交易；v0.1 的批量处理仍只输出本地分析报告，不能写入 runs 或 orders。
+5. 目前单个策略如包含多个资产，v0.1 应明确拒绝单标的预览，直到后续版本实现逐资产研究和组合风控。

@@ -64,6 +64,7 @@ def _typed_evidence(items: Any, *, as_of: datetime, kind: str) -> list[dict[str,
         output.append({
             "type": kind,
             "factor": str(raw.get("factor", "")),
+            "assessment": raw.get("assessment") if raw.get("assessment") in ("supporting", "contradicting") else "unassessed",
             "title": str(raw.get("title", ""))[:160],
             "detail": str(raw.get("detail", ""))[:800],
             "source_url": url if isinstance(url, str) and url.startswith("https://") else None,
@@ -106,7 +107,11 @@ def assess_hypotheses(evidence: dict[str, Any] | None, *, as_of: datetime) -> di
             )
         else:
             valid = False
-        state = explicit.get("state") if valid else ("evidence_available_needs_mapping" if eligible else "unknown")
+        typed_assessments = [item["assessment"] for item in eligible if item["assessment"] in ("supporting", "contradicting")]
+        typed_state = "contradicting" if "contradicting" in typed_assessments else (
+            "supporting" if typed_assessments and all(x == "supporting" for x in typed_assessments) else "unknown"
+        )
+        state = explicit.get("state") if valid else typed_state
         checks[name] = {
             "required_evidence_type": needed,
             "status": state if state in ("supporting", "contradicting") else "unknown",

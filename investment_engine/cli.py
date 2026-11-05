@@ -40,7 +40,7 @@ def main() -> None:
 
     client = None
     if args.source == "otw":
-        client = OTWReadClient(os.getenv("OTW_BASE_URL", ""), os.getenv("OTW_API_TOKEN", ""))
+        client = OTWReadClient(os.getenv("OTW_BASE_URL", ""), os.getenv("OTW_API_TOKEN", ""), transport=os.getenv("OTW_TRANSPORT", "rest"))
     if args.list_strategies:
         entries = client.list_strategies()
         public_entries = [

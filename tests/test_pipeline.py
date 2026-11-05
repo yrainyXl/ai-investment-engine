@@ -123,3 +123,16 @@ def test_legacy_evidence_missing_retrieval_timestamp_is_not_accepted():
     }}}
     result = review_evidence(evidence, NOW)
     assert result["factors"]["actual_supply_change"]["status"] == "unknown"
+
+
+def test_read_bars_excludes_unfinished_same_day_candle(tmp_path):
+    from datetime import timedelta
+    start = datetime(2026, 9, 1)
+    rows = [(start + timedelta(days=i)).date().isoformat() for i in range(60)]
+    rows.append("2026-11-05")
+    csv_path = tmp_path / "bars.csv"
+    csv_path.write_text("date,close\n" + "".join(f"{day},10.0\n" for day in rows))
+    result = read_bars(csv_path, NOW)  # 10:00 Shanghai
+    assert result["status"] == "computed"
+    assert result["bar_count"] == 60
+    assert result["last_bar"] == rows[-2]

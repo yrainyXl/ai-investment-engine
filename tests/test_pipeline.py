@@ -35,7 +35,9 @@ def test_invalid_future_price_series(tmp_path):
 def test_candidate_trade_still_vetoed(tmp_path):
     from datetime import timedelta
     evidence = {"factors": {name: {"state": "supporting", "source_url": "https://example.com/test",
-                                      "reviewed_by_human": True, "published_at": "2026-01-01T00:00:00Z"}
+                                      "reviewed_by_human": True, "published_at": "2026-01-01T00:00:00Z",
+                                      "effective_at": "2026-01-01T00:00:00Z",
+                                      "retrieved_at": "2026-01-02T00:00:00Z"}
                             for name in ("actual_supply_change", "multiweek_inventory_trend", "profit_pass_through", "priced_market_expectations")}}
     evidence_path = tmp_path / "evidence.json"
     evidence_path.write_text(json.dumps(evidence))
@@ -111,3 +113,13 @@ def test_multi_asset_strategy_is_not_silently_reduced_to_first():
     client.get = lambda path: fixture
     with pytest.raises(OTWError, match="Multi-asset"):
         run_pipeline(source="otw", as_of=NOW, strategy_id=sid, client=client)
+
+
+def test_legacy_evidence_missing_retrieval_timestamp_is_not_accepted():
+    evidence = {"factors": {"actual_supply_change": {
+        "state": "supporting", "source_url": "https://example.com/test",
+        "reviewed_by_human": True, "published_at": "2026-01-01T00:00:00Z",
+        "effective_at": "2026-01-01T00:00:00Z",
+    }}}
+    result = review_evidence(evidence, NOW)
+    assert result["factors"]["actual_supply_change"]["status"] == "unknown"

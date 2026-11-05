@@ -56,12 +56,11 @@ class ResearchRequest(BaseModel):
 
 def _authorize(authorization: str | None, *, otw_access: bool = False) -> None:
     configured_token = os.getenv("ENGINE_API_TOKEN", "")
-    if otw_access and not configured_token:
-        raise HTTPException(503, "OTW access disabled without ENGINE_API_TOKEN")
-    if configured_token:
-        expected_header = f"Bearer {configured_token}"
-        if not authorization or not compare_digest(authorization, expected_header):
-            raise HTTPException(401, "Authentication required")
+    if not configured_token:
+        raise HTTPException(503, "API disabled without ENGINE_API_TOKEN")
+    expected_header = f"Bearer {configured_token}"
+    if not authorization or not compare_digest(authorization, expected_header):
+        raise HTTPException(401, "Authentication required")
 
 
 def _otw_client() -> OTWReadClient:

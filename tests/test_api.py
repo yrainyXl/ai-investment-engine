@@ -77,3 +77,15 @@ def test_report_listing_requires_token_and_returns_empty(monkeypatch, tmp_path):
     response = client.get("/v1/reports", headers={"Authorization": "Bearer test-api-token"})
     assert response.status_code == 200
     assert response.json()["reports"] == []
+
+
+def test_report_detail_requires_token_and_returns_404_for_missing(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
+    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
+    report_id = "0" * 32
+    assert client.get(f"/v1/reports/{report_id}").status_code == 401
+    response = client.get(
+        f"/v1/reports/{report_id}",
+        headers={"Authorization": "Bearer test-api-token"},
+    )
+    assert response.status_code == 404

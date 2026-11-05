@@ -37,7 +37,7 @@ class MarketSyncRequest(BaseModel):
 class BacktestRequest(BaseModel):
     symbol: str = Field(min_length=1, max_length=24)
     asset_type: Literal["stock", "etf", "future"] = "stock"
-    adjustment: Literal["none", "qfq", "hfq", "continuous"] = "qfq"
+    adjustment: Literal["none", "qfq", "hfq", "continuous"] | None = None
     strategy: Literal["sma_trend", "buy_and_hold"] = "sma_trend"
     fast_period: int = Field(default=20, ge=2, le=200)
     slow_period: int = Field(default=60, ge=3, le=500)
@@ -147,10 +147,11 @@ def sync_market_data(req: MarketSyncRequest, authorization: str | None = Header(
 
 @app.get("/v1/market-data/{symbol}")
 def get_market_data(symbol: str, asset_type: Literal["stock", "etf", "future"] = "stock",
-                    adjustment: Literal["none", "qfq", "hfq", "continuous"] = "qfq",
+                    adjustment: Literal["none", "qfq", "hfq", "continuous"] | None = None,
                     start_date: str | None = None, end_date: str | None = None,
                     authorization: str | None = Header(default=None)):
     _authorize(authorization)
+    adjustment = adjustment or ("continuous" if asset_type == "future" else "qfq")
     try:
         bars = _store().load(symbol, asset_type, adjustment)
     except MarketDataError as exc:
@@ -170,12 +171,14 @@ def backtest(req: BacktestRequest, authorization: str | None = Header(default=No
     _authorize(authorization)
     as_of = _as_of(req.as_of)
     try:
-        bars = _store().load(req.symbol, req.asset_type, req.adjustment)
+        adjustment = req.adjustment or ("continuous" if req.asset_type == "future" else "qfq")
+        bars = _store().load(req.symbol, req.asset_type, adjustment)
         bars = [x for x in bars if x.timestamp <= as_of.date().isoformat()]
         report = run_backtest(
             bars, strategy=req.strategy, fast_period=req.fast_period, slow_period=req.slow_period,
             fee_bps=req.fee_bps, slippage_bps=req.slippage_bps, as_of=as_of.date(),
         )
+        report["data"]["adjustment"] = adjustment
         report["as_of"] = as_of.isoformat()
         return report
     except (MarketDataError, BacktestError) as exc:

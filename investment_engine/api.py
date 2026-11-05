@@ -202,7 +202,14 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
         matched = next((x for x in holdings if str(x.get("symbol")) == symbol), None)
         asset_id = matched.get("id") if matched else None
         thesis = client.asset_thesis(strategy_id, asset_id) if asset_id else None
-        thesis_content = thesis.get("document", {}).get("content", {}) if thesis else {}
+        thesis_document = thesis.get("document", {}) if thesis else {}
+        thesis_content = thesis_document.get("content", {})
+        strategy = context.get("strategy", {})
+        account = context.get("account", {})
+        account_summary = {
+            "currency": account.get("currency"), "cash": account.get("cash"), "equity": account.get("equity"),
+            "holdings": [{"symbol": item.get("symbol"), "quantity": item.get("quantity")} for item in holdings],
+        }
         stock_bars = _store().load(symbol, "stock", "qfq")
         stock_bars = [x for x in stock_bars if x.timestamp <= as_of.date().isoformat()]
         futures_bars = _store().load(req.futures_symbol, "future", "continuous") if req.futures_symbol else []
@@ -210,7 +217,9 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
         return build_research_snapshot(
             strategy_id=strategy_id, symbol=symbol, thesis_content=thesis_content,
             stock_bars=stock_bars, futures_symbol=req.futures_symbol,
-            futures_bars=futures_bars, evidence=req.evidence, as_of=as_of,
+            futures_bars=futures_bars, evidence=req.evidence,
+            strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
+            account_summary=account_summary, as_of=as_of,
         )
     except OTWError as exc:
         raise HTTPException(422, "OTW research context unavailable") from exc

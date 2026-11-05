@@ -9,6 +9,7 @@ OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：
 - AKShare 日线数据适配：A 股、场内 ETF、国内商品期货连续序列。
 - 统一 OHLCV 数据结构，保留来源、抓取时间、复权口径、交易所、单位。
 - 本地 CSV 缓存，按 symbol / asset_type / adjustment 分开存储；再次同步时会从已有序列最早日期刷新，避免前复权因子或期货连续序列变动后混用新旧历史数据。
+- 研究快照与回测报告持久化到 /data/reports，可通过 API 列出；不写入 OTW。
 - 数据质量检查：时间顺序、重复日期、未来数据、OHLC 关系、价格/成交量异常；交易日间隔只作为日历提示。
 - 研究快照：股票与期货价格观察；把确认事实、市场预期、个人推断分开登记；缺少来源时明确输出 unknown。
 - 历史回测：买入持有基准、SMA 趋势策略、手续费/滑点、年化收益、波动率、Sharpe、最大回撤、正收益日比例、仓位暴露和换手。
@@ -141,6 +142,7 @@ assessment 只能由人审阅后标为 supporting 或 contradicting。证据发�
 - GET /v1/market-data/{symbol}：读取本地缓存。
 - POST /v1/backtests/run：运行 SMA/买入持有回测。
 - POST /v1/research/preview：读取 OTW 假设文档并生成研究快照。
+- GET /v1/reports：列出已保存的研究快照和回测报告。
 
 示例：
 
@@ -153,7 +155,7 @@ curl -X POST http://127.0.0.1:8018/v1/market-data/sync \
 
 ## Docker 部署
 
-复制 .env.example 为服务器私有的 .env，配置 OTW MCP 和引擎访问凭证。服务器使用 Docker Compose 时，./data 会持久化市场数据。容器以 nobody 身份运行，部署前需让宿主机目录可写：
+复制 .env.example 为服务器私有的 .env，配置 OTW MCP 和引擎访问凭证。服务器使用 Docker Compose 时，./data 会持久化市场数据和研究/回测报告。容器以 nobody 身份运行，部署前需让宿主机目录可写：
 
 ~~~bash
 mkdir -p data

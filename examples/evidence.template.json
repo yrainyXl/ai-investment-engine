@@ -1,0 +1,67 @@
+{
+  "facts": [
+    {
+      "factor": "actual_supply_change",
+      "assessment": "unassessed",
+      "title": "在此填写可核实的供给事实",
+      "detail": "记录产区、统计口径、单位、比较周期和原始数据",
+      "source_url": "https://example.com/source",
+      "published_at": "2026-11-04T08:00:00+08:00",
+      "effective_at": "2026-11-03T00:00:00+08:00",
+      "retrieved_at": "2026-11-04T10:00:00+08:00",
+      "reviewed_by_human": false,
+      "confidence": 0.0
+    },
+    {
+      "factor": "multiweek_inventory_trend",
+      "assessment": "unassessed",
+      "title": "在此填写库存事实",
+      "detail": "记录库存范围、样本、单位、连续周数及来源定义",
+      "source_url": "https://example.com/inventory",
+      "published_at": "2026-11-04T08:00:00+08:00",
+      "effective_at": "2026-11-03T00:00:00+08:00",
+      "retrieved_at": "2026-11-04T10:00:00+08:00",
+      "reviewed_by_human": false,
+      "confidence": 0.0
+    },
+    {
+      "factor": "profit_pass_through",
+      "assessment": "unassessed",
+      "title": "在此填写公司盈利传导事实",
+      "detail": "记录公司披露的采购成本、售价、销量、毛利或财报数据",
+      "source_url": "https://example.com/financial-report",
+      "published_at": "2026-11-04T08:00:00+08:00",
+      "effective_at": "2026-09-30T00:00:00+08:00",
+      "retrieved_at": "2026-11-04T10:00:00+08:00",
+      "reviewed_by_human": false,
+      "confidence": 0.0
+    }
+  ],
+  "expectations": [
+    {
+      "factor": "priced_market_expectations",
+      "assessment": "unassessed",
+      "title": "在此填写当时市场预期",
+      "detail": "记录分析师一致预期、盈利预测、市场调查或其他可追溯预期",
+      "source_url": "https://example.com/expectations",
+      "published_at": "2026-11-04T08:00:00+08:00",
+      "effective_at": "2026-11-04T08:00:00+08:00",
+      "retrieved_at": "2026-11-04T10:00:00+08:00",
+      "reviewed_by_human": false,
+      "confidence": 0.0
+    }
+  ],
+  "inferences": [
+    {
+      "factor": "profit_pass_through",
+      "title": "在此填写个人推断",
+      "detail": "例如：如果外采成本传导滞后于产品售价，阶段性毛利可能改善。此处是推断，不是确认事实。",
+      "source_url": null,
+      "published_at": null,
+      "effective_at": null,
+      "retrieved_at": null,
+      "reviewed_by_human": false,
+      "confidence": 0.0
+    }
+  ]
+}

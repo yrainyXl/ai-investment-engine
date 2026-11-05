@@ -1,78 +1,190 @@
-# AI Investment Engine v0.1
+# AI Investment Engine v0.2
 
-OTW 外置研究与投资决策引擎：**read-only preview**，不改变 OTW 现有账本，不进行实际证券交易，也不提交模拟订单。
+OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：读取 OTW 真实账户上下文，通过 AKShare 获取公开日线数据，建立可追溯的数据缓存，评估投资假设并运行透明的基准回测。不会写入 OTW runs/orders/documents，也不会连接券商或下真实订单。
 
-> 基线：2026-11-05 经 OTW MCP 只读核对。已确认 `paper-trading` 的 `context`、`runs`、`orders`、`documents` 端点；已确认海南橡胶模拟策略存在。当前 `histdata/datasets` 和 `backtest/strategies` 均为空。该策略历史分析中有 **模拟成交冻结** 标记，恢复条件尚未完成。本项目默认全部禁止下单，保持现有任务原样运行。
+## 本阶段已实现
 
-## 交付内容
+- OTW REST / MCP 只读传输；当前服务器使用 OTW_TRANSPORT=mcp，仅调用 otw_read。
+- 动态发现 OTW 模拟策略，不需要固定 OTW_STRATEGY_ID。
+- AKShare 日线数据适配：A 股、场内 ETF、国内商品期货连续序列。
+- 统一 OHLCV 数据结构，保留来源、抓取时间、复权口径、交易所、单位。
+- 本地 CSV 缓存，按 symbol / asset_type / adjustment 分开存储；再次同步时会从已有序列最早日期刷新，避免前复权因子或期货连续序列变动后混用新旧历史数据。
+- 研究快照与回测报告持久化到 /data/reports，可通过 API 列出；不写入 OTW。
+- 数据质量检查：时间顺序、重复日期、未来数据、OHLC 关系、价格/成交量异常；交易日间隔只作为日历提示。
+- 研究快照：股票与期货价格观察；把确认事实、市场预期、个人推断分开登记；缺少来源时明确输出 unknown。
+- 历史回测：买入持有基准、SMA 趋势策略、手续费/滑点、年化收益、波动率、Sharpe、最大回撤、正收益日比例、仓位暴露和换手。
+- 回测信号使用收盘后数据，下一交易日开盘执行；不使用同一根 K 线未来收盘价。
+- Docker 数据持久化挂载，PyPI 镜像通过 build arg 配置。
 
-- `investment_engine/otw_client.py`：OTW HTTP **只读**接口（现有路径，不虚构新的服务器 API）。
-- `investment_engine/analysis.py`：四项周期投资假设证据状态、60 日价格均线诊断、风控否决。
-- `investment_engine/pipeline.py`：串联 OTW 上下文、全局策略文档、投资假设、量化诊断、交易意向、风控、决策与 OTW `/runs` payload 预览。
-- `investment_engine/cli.py`：本地命令行，输出完整 JSON 决策快照。
-- `investment_engine/api.py`：可选 FastAPI 本机 `/healthz`、`/v1/analysis/preview`，**无写接口**。
-- `docs/IMPLEMENTATION_PLAN.md`：分期实施计划和责任分工。
-- `docs/OTW_INTEGRATION.md`：经实际查询确认的接口、限制和安全边界。
-- `docs/ACCEPTANCE.md`：验收标准与暂不开放交易的条件。
-- `fixtures/`：明确标注的合成示例数据，绝不视为真实行情。
+## 安装
 
-## 一键验证（无需 OTW Token）
-
-在项目目录运行：
-
-```bash
-python -m investment_engine.cli --source fixture --out output/latest-preview.json
+~~~bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[api,market-data,test]'
 python -m pytest -q
-```
+~~~
 
-不希望安装依赖也能直接运行 CLI。只有测试需要 `pytest`。本地模拟输出不会自动上传 OTW。
+AKShare 是可选依赖，导入采用 lazy import。未安装时，数据同步会明确报错，不会返回模拟行情。
 
-## 只读连接现有 OTW
+## 获取海南橡胶和天然橡胶数据
 
-先在本地环境变量中配置（不要提交到 Git）：
+A 股日线（前复权）：
 
-```bash
-export OTW_BASE_URL='https://<你的OTW域名>'
-export OTW_API_TOKEN='<服务器端可用的只读Token>'
-python -m investment_engine.cli --source otw --list-strategies
-# 当前只有一个 active 策略时可自动选择：
-python -m investment_engine.cli --source otw --out output/live-preview.json
-# 多个 active 策略时，请显式选择：
-python -m investment_engine.cli --source otw --strategy-id '<从列表获取的UUID>' --out output/one-preview.json
-# 或者以只读方式批量预览全部 active 策略：
-python -m investment_engine.cli --source otw --all-active --out output/all-active.json
-```
+~~~bash
+python -m investment_engine.market_cli sync \
+  --asset-type stock --symbol 601118 \
+  --start-date 20180101 --end-date 20261105 --adjustment qfq
+~~~
 
-注意：已在 ChatGPT MCP 连接里能调用 OTW，**并不能证明本地这个 HTTP Token 已配置或有相同权限**；本地 HTTP 鉴权需由你在服务器上核实。不应把 ChatGPT 内部凭证复制进仓库。失败只会报错，不会回退到记忆或模拟数据伪装成功。
+天然橡胶主力连续参考序列：
 
-策略 ID 不再属于服务端固定配置：引擎通过 OTW `GET /api/paper-trading/strategies` 动态发现。HTTP 端点 `GET /v1/strategies` 需要 `ENGINE_API_TOKEN` 鉴权，`POST /v1/analysis/preview` 可以通过请求体传入 `strategy_id`。未提供 ID 时只允许唯一的 active 策略自动选择；多个 active 策略要求明确 ID，避免误用账户。批量预览使用 CLI 的 `--all-active`，不自动下单，也不允许同一份证据/日线文件套用到不同策略。
+~~~bash
+python -m investment_engine.market_cli sync \
+  --asset-type future --symbol RU0 \
+  --start-date 20180101 --end-date 20261105 --adjustment continuous
+~~~
 
-可选：`--evidence fixtures/evidence.template.json` 提供待审阅的基本面证据；`--bars path/to/daily.csv` 提供本地日线 (`date,close`) 以计算均线。没有历史数据时明确输出 `unavailable`，**不会制造回测收益**。
+查看本地缓存：
 
-## 本机 API
+~~~bash
+python -m investment_engine.market_cli list
+~~~
 
-```bash
-python -m pip install -e '.[api,test]'
-uvicorn investment_engine.api:app --host 127.0.0.1 --port 8018
-curl -s http://127.0.0.1:8018/healthz
-curl -s -X POST http://127.0.0.1:8018/v1/analysis/preview \
-  -H 'Content-Type: application/json' -d '{"source":"fixture"}'
-```
+当前 AKShare 适配使用 stock_zh_a_hist 获取 A 股日线、fund_etf_hist_em 获取 ETF 日线、futures_zh_daily_sina 获取期货连续/合约日线。AKShare 上游接口可能随数据网站调整而变化，失败时会返回 unavailable/error，不会编造数据。
 
-不要直接暴露到公网；若以后经 OTW 反向代理使用，必须先配置鉴权、调用限速、超时、审计和 IP/网络边界。
+**复权口径：**
+- A 股/ETF 默认 qfq（前复权），适合连续收益与技术指标研究。
+- none 为不复权，适合核对原始交易价格；分红送转会形成价格跳空。
+- hfq 为后复权，历史值可能出现异常或负值；本项目价格校验会拒绝非正价格，不建议作为默认研究口径。
+- 期货连续序列标记为 continuous。主力连续合约有换月拼接影响，不等于可交易的单一合约，也不能直接代表海南橡胶的实际采购/销售结算价。
 
-## 可执行边界
+成交量单位保留在数据元信息中：A 股为接口返回的“手”，ETF 暂标记 provider_units（不擅自假定份额或手），期货为“手/合约”；成交额若上游未提供则留空，不会推算。每次同步会报告 requested_start_date 和 effective_refresh_start_date。
 
-当前版本 **没有 TradingAgents / LLM 自动研究、AKShare 自动数据抓取、真实因子回测或交易执行**。它提供的是能够在 OTW 实际输入上验证的安全骨架：读真实上下文、标记缺失证据、输出结构化决策、留下可审计快照，以及统一 API。所谓 `buy_candidate` / `sell_candidate` **只是候选意向**，所有候选订单都被否决，最终 `decision=no_trade`；不能解释为已经验证的盈利信号。OTW `/runs` 的内容也仅导出为本地预览，不自动 POST。
+## 回测
 
-更完整的工程分期见 [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)。
+SMA 20/60 趋势策略：
 
-## 当前覆盖范围
+~~~bash
+python -m investment_engine.market_cli backtest \
+  --symbol 601118 --asset-type stock --adjustment qfq \
+  --strategy sma_trend --fast-period 20 --slow-period 60 \
+  --fee-bps 10 --slippage-bps 5 --out output/601118-sma.json
+~~~
 
-v0.1 已支持读取和遍历多个 OTW 模拟策略，但单次研究仍只支持单标的。对于一个策略内存在多个资产的情况会拒绝输出，防止拿第一只资产冒充完整组合分析。跨资产、多持仓的全局文档匹配、定时任务迁移、性能比较及真正的 AI/策略回测属于后续阶段。`account_summary.reference_price` 只代表 OTW 参考报价，**不等于已核验的交易所收盘价或可执行成交价**。
+买入并持有基准：
 
-服务器部署由 DeepSeek Harness 执行时，优先阅读 [docs/HARNESS_DEPLOY_TASK.md](docs/HARNESS_DEPLOY_TASK.md)；Docker Compose 的最小部署方式见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+~~~bash
+python -m investment_engine.market_cli backtest \
+  --symbol 601118 --asset-type stock --adjustment qfq \
+  --strategy buy_and_hold --out output/601118-benchmark.json
+~~~
 
-**注意：** `compose.yaml` 只绑定服务器的 `127.0.0.1:8018`，不能直接公网访问。`/v1/analysis/preview` 在 OTW 模式必须配置独立的 `ENGINE_API_TOKEN` 并携带 `Authorization: Bearer ...`；没有该 token 只能进行 fixture 演示。仓库不能包含任何实际 token、`.env`、服务器密钥或真实账户导出。
+回测约定：
+- 用 t 日收盘数据计算信号，t+1 日开盘执行；收益按开盘到下一开盘计算。
+- 研究和回测按北京时间 15:05 作为日线收盘安全边界；此前不会把当天尚未完成的日 K 线纳入判断。
+- 手续费和滑点以单边 basis points 配置，买入/卖出均计成本。
+- 仅多头、无杠杆；没有模拟涨跌停排队、停牌成交、冲击成本、印花税差异、分红现金流、退市样本和幸存者偏差处理。
+- 使用前复权数据时，回测收益采用供应商复权价格序列，不代表历史真实成交价。
+- 结果只用于研究策略行为，不具备交易资格，不构成收益预测。
 
-关于将 ChatGPT 当作入口，经过审批再将服务器操作委派给 Harness 的可行架构，见 [docs/HARNESS_INTEGRATION.md](docs/HARNESS_INTEGRATION.md)。`examples/preview.synthetic.json` 是合成样例输出，不是实时投资结论。
+## 投资假设与证据
+
+研究快照：
+
+~~~bash
+python -m investment_engine.market_cli research \
+  --futures-symbol RU0 --out output/hainan-rubber-research.json
+~~~
+
+命令通过 OTW MCP 只读获取策略上下文和全局策略文档，并读取本地已经缓存的 601118、RU0 数据。也可以显式传 --symbol、--strategy-id、--evidence evidence.json。
+
+证据文件按三类保存：
+
+- facts：确认事实，例如已披露产量、库存数据、公司财报。必须有人审阅并提供来源 URL、发布日期、生效日期、实际获取日期。
+- expectations：市场预期，例如一致预期、分析师预测或当时公开的市场预期记录。
+- inferences：个人推断，例如“胶价上涨可能改善公司利润”。推断不会被当成事实或市场预期。
+
+单条证据示例：
+
+~~~json
+{
+  "facts": [
+    {
+      "factor": "multiweek_inventory_trend",
+      "assessment": "supporting",
+      "title": "青岛天然橡胶库存连续下降",
+      "detail": "填写经核实的库存变化、统计范围和单位",
+      "source_url": "https://example.com/source",
+      "published_at": "2026-11-04T08:00:00+08:00",
+      "effective_at": "2026-11-03T00:00:00+08:00",
+      "retrieved_at": "2026-11-04T10:00:00+08:00",
+      "reviewed_by_human": true,
+      "confidence": 0.8
+    }
+  ],
+  "expectations": [],
+  "inferences": []
+}
+~~~
+
+assessment 只能由人审阅后标为 supporting 或 contradicting。证据发布时间、生效时间、获取时间任何一个晚于 as_of，都不能用于该时点的历史判断。示例 URL 是占位符，不代表真实证据。
+
+对海南橡胶，OHLCV 和 RU0 只能提供价格与趋势观察，不能证明实际供给变化、库存变化、公司利润传导或市场已计价预期。上述基本面证据缺失时，研究结果会保持 unknown / insufficient_evidence。
+
+## HTTP API
+
+需要先配置 ENGINE_API_TOKEN。所有接口均受 Bearer Token 保护（/healthz 除外）。
+
+- GET /v1/strategies：动态读取 OTW 策略列表。
+- POST /v1/analysis/preview：现有只读分析预览。
+- GET /v1/market-data：列出本地数据序列。
+- POST /v1/market-data/sync：获取并缓存指定 symbol 的日线数据。
+- GET /v1/market-data/{symbol}：读取本地缓存。
+- POST /v1/backtests/run：运行 SMA/买入持有回测。
+- POST /v1/research/preview：读取 OTW 假设文档并生成研究快照。
+- GET /v1/reports：列出已保存的研究快照和回测报告。
+- GET /v1/reports/{report_id}：读取指定报告的完整内容。
+
+示例：
+
+~~~bash
+curl -X POST http://127.0.0.1:8018/v1/market-data/sync \
+  -H "Authorization: Bearer $ENGINE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"601118","asset_type":"stock","start_date":"20180101","adjustment":"qfq"}'
+~~~
+
+## Docker 部署
+
+复制 .env.example 为服务器私有的 .env，配置 OTW MCP 和引擎访问凭证。服务器使用 Docker Compose 时，./data 会持久化市场数据和研究/回测报告。容器以 nobody 身份运行，部署前需让宿主机目录可写：
+
+~~~bash
+mkdir -p data
+sudo chown 65534:65534 data
+chmod 750 data
+~~~
+
+国内服务器可在 .env 设置：
+
+~~~dotenv
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+~~~
+
+默认值是官方 https://pypi.org/simple。镜像地址只影响 Docker build，不需要写入代码。
+
+~~~bash
+docker compose config --quiet
+docker compose up -d --build engine
+docker compose ps
+curl --fail http://127.0.0.1:8018/healthz
+~~~
+
+## 明确边界
+
+- 只读 OTW：MCP 客户端只调用 otw_read。没有 otw_write、订单提交或策略文档更新。
+- 不创建 OTW runs/orders，不调整原有冻结状态，不创建定时任务。
+- AKShare 数据为公开数据源抓取结果，需保留 source/fetched_at/adjustment；接口中断或数据异常必须显式失败。
+- 当前仅支持 A 股、ETF 日线和国内期货日线；开放式公募基金单位净值、财报结构化抓取、库存多源交叉核对仍是后续工作。
+- 研究证据需要人工确认；当前没有 LLM Agent 自动抓取和自动判断事实。
+- 所有回测和研究输出均 eligible_for_trading=false。不能把回测结果当作真实成交能力或投资建议。

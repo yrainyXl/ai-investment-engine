@@ -13,6 +13,8 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: python -m pip install -e '.[api,test]'
+      - run: python -m pip install -e '.[api,market-data,test]'
       - run: python -m pytest -q
       - run: python -m investment_engine.cli --source fixture --out /tmp/fixture-preview.json
+      - run: python -m investment_engine.market_cli --help
+      - run: python -c "import akshare; print('AKShare', akshare.__version__)"

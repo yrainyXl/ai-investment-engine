@@ -4,17 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-investment-engine"
-version = "0.1.0"
-description = "Read-only, evidence-first AI paper investment decision pipeline for OTW"
+version = "0.2.0"
+description = "Evidence-first read-only AI paper investment research and backtesting engine for OTW"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
 api = ["fastapi>=0.110,<1", "uvicorn>=0.25,<1"]
+market-data = ["akshare>=1.17"]
 test = ["pytest>=8,<10", "httpx>=0.27,<1"]
 
 [project.scripts]
 investment-engine = "investment_engine.cli:main"
+investment-engine-market = "investment_engine.market_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

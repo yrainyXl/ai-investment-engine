@@ -1,138 +1,126 @@
-# DeepSeek Harness 执行任务：部署 AI Investment Engine v0.1（只读）
+# DeepSeek Harness 执行任务：升级 AI Investment Engine v0.2
 
-> 面向在用户服务器上运行的 DeepSeek Harness。请完整阅读本文件后再执行。所有部署命令都应以实际环境核查结果为准，不假定当前运行路径、容器名、端口或凭证。
->
-> 源码仓库：https://github.com/yrainyXl/ai-investment-engine
->
-> **绝对边界：不执行真实证券交易、不提交 OTW 模拟订单、不修改 OTW 现有投资组合/策略文档/历史运行记录，不停止现有 ChatGPT 定时任务。** 本阶段仅安装并验证一个隔离的只读研究服务。
+目标部署 ref：main（先合并本项目 PR #1）
+部署目录：/opt/apps/ai-investment-engine
+当前线上版本：v0.1.1，127.0.0.1:8018
 
-## 0. 操作权限及审批
+## 任务范围
 
-允许：只读查看服务器运行状态、检查 Docker/Compose、检查端口占用、拉取本仓库代码、运行测试、在独立目录构建并启动本项目。
+升级为 v0.2，增加 AKShare 日线行情同步、本地数据缓存、投资假设证据分类、SMA/买入持有历史回测和研究 API。保留 OTW MCP 只读连接。
 
-必须在执行前请求用户批准：安装系统软件、调整防火墙或反向代理、修改其他应用/共享 Docker 网络配置、重启宿主机或其他服务、删除任何数据、给任何 Agent 开放公网访问、赋予额外 OTW 写权限。
+**硬性边界：不创建 OTW runs/orders/documents，不调用 otw_write/otw_compute，不下真实证券订单，不改变旧模拟成交冻结，不新增定时任务，不扩大 MCP token 权限，不停止原有 ChatGPT 任务。**
 
-禁止：使用 `docker compose down -v`，清空磁盘/数据库，导出或打印 Token、SSH 私钥、OTW 环境变量内容，向 ChatGPT/GitHub Issue/PR/日志发送密钥，为方便调试关闭 TLS 校验、在命令行参数或公开 URL 中放 Token。
+## 1. 更新代码
 
-## 1. 只读环境调查（先完成，不改服务器）
+1. 检查工作区干净和当前部署 SHA，保留当前本地 main，不执行 reset --hard。
+2. git fetch origin。
+3. 确认 PR #1 已合并，且 origin/main 已包含 v0.2。若尚未合并，停止并报告，不要提前部署未合并代码。
+4. 为当前部署版本创建本地备份分支，例如 backup/engine-v0.1.1。
+5. 不要切换或重置当前本地 main（它包含服务器上此前未推送的提交）。从 origin/main 新建独立部署分支：git switch -c deploy/v0.2 origin/main。
+6. 不要删除备份分支，也不要把 .env、data/、本地报告或任何密钥提交 Git。
 
-1. 检查 `docker --version`、`docker compose version`、Python 版本、可用磁盘容量和端口 8018 是否已使用。
-2. 确认 OTW 和 DeepSeek Harness 正在运行的方式、各自容器与网络名称，但不要读取或打印它们的机密环境变量。
-3. 确认 `ai-investment-engine` 的部署目录位置。建议独立目录，例如 `/srv/ai-investment-engine`，不要覆盖现有服务。
-4. 如果 8018 已占用，选择新的 **127.0.0.1** 回环端口并在报告中说明。不得未经审批更改其他服务端口。
-5. 若仓库设为 Private，请让用户安装只读 Deploy Key 或使用既有 GitHub 授权，**不得让用户把 PAT 粘贴到聊天、Issue 或项目文件**。
+## 2. 保留并补充环境配置
 
-阶段报告：只返回 Docker/Compose 可用性、建议目录、端口是否可用、OTW 访问方案（同机回环还是 HTTPS），**绝不输出凭证**。
+原有 OTW_BASE_URL、OTW_API_TOKEN、ENGINE_API_TOKEN 保持不变；确认 OTW_TRANSPORT=mcp。
 
-## 2. 拉取代码与测试
+在服务器 .env 增加或确认以下非秘密配置：
 
-```bash
-# 目录仅为建议；按第 1 步实际情况选择
-sudo mkdir -p /srv/ai-investment-engine
-sudo chown "$(id -un):$(id -gn)" /srv/ai-investment-engine
-cd /srv/ai-investment-engine
-# 空目录才 clone；已存在时先检查 git status，保留未提交修改
-git clone https://github.com/yrainyXl/ai-investment-engine.git .
-git status --short
-git rev-parse HEAD
-```
+~~~dotenv
+ENGINE_DATA_DIR=/data
+MARKET_DATA_PROVIDER=akshare
+MARKET_DATA_DEFAULT_START_DATE=20180101
+MARKET_DATA_DEFAULT_ADJUSTMENT=qfq
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+~~~
 
-> 若非空或无权限，先调整操作方案并请求必要批准，**不要盲目执行清理或 `git reset --hard`**。
+PIP_INDEX_URL 只作为 Docker build 参数。默认值仍为官方 PyPI；不要把清华源硬编码到 Dockerfile。
 
-使用 Docker 验证无需污染全局 Python 环境（此时尚未准备 `.env`，先独立 build/run）：
+## 3. 创建持久化数据目录
 
-```bash
-docker build -t ai-investment-engine:0.1 .
-# 仅使用仓库中明确标记的 synthetic fixtures；无网络、无 Token
-# 可以直接运行 CLI，无需安装 pytest：
-docker run --rm --network none ai-investment-engine:0.1 \
-  python -m investment_engine.cli --source fixture --out /tmp/preview.synthetic.json
-```
+容器以 nobody（UID 65534）运行，宿主机数据目录需要可写：
 
-如果 `docker compose build` 因拉取基础镜像/依赖失败，应记录网络或代理错误；不得绕过证书验证。测试阶段可使用服务器现有的 Python 虚拟环境运行 `python -m pip install -e '.[api,test]'` 后 `python -m pytest -q`，但必须隔离在该项目环境。
+~~~bash
+cd /opt/apps/ai-investment-engine
+mkdir -p data
+sudo chown 65534:65534 data
+chmod 750 data
+~~~
 
-## 3. 创建密钥配置（仅在服务器上）
+确认 data/ 已被 .gitignore 忽略。
 
-- 根据 `.env.example` 在项目目录创建未纳入 Git 管理的 `.env`，权限设为 600。
-- `ENGINE_MODE=preview`。
-- `OTW_BASE_URL` 指向**引擎容器内部实际可访问**的 OTW HTTPS API 地址。注意：Docker 容器里的 `127.0.0.1` 指向容器自身，而不是宿主机；不要盲目使用宿主机回环地址。若需要 Docker 内网 HTTP/专用 CA，先提交网络与证书适配方案供审核，不能临时关闭 TLS 或放宽客户端传输检查。
-- `OTW_API_TOKEN` 由 OTW 管理端生成或安全注入，应限制到本策略所需的**只读**范围；如果当前服务端没有相应的 token/权限，停止真实数据联调并报告，不应复用不明来源的凭证。
-- **不需要配置 `OTW_STRATEGY_ID`。** 引擎通过 `GET /api/paper-trading/strategies` 动态获取策略列表；单次预览可在请求体传入 `strategy_id`。
-- `ENGINE_API_TOKEN` 为单独生成的高强度随机密钥，仅控制对本引擎预览 API 的访问；它与 `OTW_API_TOKEN` **必须不同**。
-- `.env` 文件、内部网络地址、服务器主机信息和用户数据不提交 GitHub。
+## 4. 构建与启动
 
-**与用户确认来源后再配置真正密钥。不要自动抓取其他进程的环境变量、证书、浏览器 Session 或机密存储。**
-
-## 4. 启动部署
-
-```bash
-cd /srv/ai-investment-engine
-# 确保 .env 已在服务器配置、compose.yaml 本机端口无冲突
+~~~bash
 docker compose config --quiet
 docker compose up -d --build engine
 docker compose ps
-curl --fail --silent --show-error http://127.0.0.1:8018/healthz
-```
+curl --fail http://127.0.0.1:8018/healthz
+~~~
 
-预期 `/healthz` 返回 `status=ok`、`mode=read_only_preview`、`orders_enabled=false`。`compose.yaml` 仅监听 127.0.0.1，不允许随意换成 0.0.0.0 或公网域名。
+镜像应为 ai-investment-engine:0.2。端口仍然只绑定 127.0.0.1:8018。不得将服务暴露公网。
 
-验收 HTTP 权限：
+如果 AKShare 安装或上游接口请求失败，记录错误并停止数据同步，不要生成假数据。
 
-```bash
-# 未带授权访问 fixture 在 ENGINE_API_TOKEN 配置后应返回 HTTP 401
-curl -s -o /dev/null -w '%{http_code}\n' \
-  -H 'Content-Type: application/json' \
-  -d '{"source":"fixture"}' \
-  http://127.0.0.1:8018/v1/analysis/preview
-```
+## 5. 首次行情同步
 
-不要在可以留存的 Shell 历史中直接敲入真实 token。可在可信会话中通过安全方式读取密钥后测试授权请求，但不要在执行记录中打印值。
+仅获取公开日线并写入引擎自己的 ./data 目录，不写入 OTW：
 
-## 5. OTW 真实数据只读联调
+~~~bash
+docker compose exec -T engine python -m investment_engine.market_cli sync \
+  --asset-type stock --symbol 601118 \
+  --start-date 20180101 --adjustment qfq
 
-在启动后运行下面的容器内部 CLI（`--source otw` 不会向 OTW 写入任何数据）：
+docker compose exec -T engine python -m investment_engine.market_cli sync \
+  --asset-type future --symbol RU0 \
+  --start-date 20180101 --adjustment continuous
 
-```bash
-docker compose exec -T engine python -m investment_engine.cli \
-  --source otw --list-strategies
-# 如只有一个 active 策略，以下命令自动选中：
-docker compose exec -T engine python -m investment_engine.cli \
-  --source otw --out /tmp/otw-preview.json
-# 如果有多个 active 策略，可以用 --strategy-id <UUID> 指定，或者运行只读批量预览：
-docker compose exec -T engine python -m investment_engine.cli \
-  --source otw --all-active --out /tmp/all-active-preview.json
-```
+docker compose exec -T engine python -m investment_engine.market_cli list
+~~~
 
-核对：`--list-strategies` 实际返回策略列表，且不需要环境变量指定策略 ID；`source=otw`、目标策略 ID、现金和持仓数量、全局策略文档更新时间，与 OTW 前台一致；量化数据缺失则输出 unavailable，不能伪造历史数据。若服务器返回 401/403、DNS/TLS 失败或错误数据，按失败报告处理，不擅自改动 OTW 鉴权或数据。
+如果 RU0 上游接口不可用，保留股票行情结果并报告期货数据失败；不要改用未经核实的其他序列冒充 RU0。
 
-建议运行前后只读查询 OTW 的 runs 和 orders 总数，确认没有因为 v0.1 产生记录。现有文档、资产和定时任务均保持不变。
+## 6. 回测与研究快照
 
-## 6. 交付验收与回滚
+~~~bash
+docker compose exec -T engine python -m investment_engine.market_cli backtest \
+  --symbol 601118 --asset-type stock --adjustment qfq \
+  --strategy sma_trend --fast-period 20 --slow-period 60 \
+  --fee-bps 10 --slippage-bps 5 --out /data/reports/601118-sma.json
 
-交付报告需要包含：
+docker compose exec -T engine python -m investment_engine.market_cli backtest \
+  --symbol 601118 --asset-type stock --adjustment qfq \
+  --strategy buy_and_hold --out /data/reports/601118-buy-hold.json
 
-- 当前部署 Git commit SHA（运行 `git rev-parse HEAD`）；
-- Docker 服务状态、健康检查状态、本机绑定端口；
-- `python -m pytest -q` 的真实结果（如果运行），或解释仅完成容器 CLI smoke test；
-- fixture 验收结果和 OTW 真实只读验证结果（成功/失败及原因）；
-- 未提交订单、未更改 OTW、未停止旧任务的检查结论；
-- 遗留问题和需用户批准的下一步动作；
-- 不要复制任何 `.env` 内容、Authorization Header 或包含可复用密钥的日志。
+docker compose exec -T engine python -m investment_engine.market_cli research \
+  --futures-symbol RU0 --out /data/reports/hainan-rubber-research.json
+~~~
 
-失败时：仅回滚本项目容器（`docker compose stop engine`），保留部署目录和已存在的数据；不得触碰 OTW/DeepSeek Harness 容器，不得使用带 `-v` 的清理命令。
+回测输出只写本地文件，不代表交易建议。研究快照应显示 OHLCV 观察、RU0 参考序列（若同步成功）、四项基本面假设的证据缺口。
 
-## 明确不在本次部署范围
+## 7. API 能力
 
-1. 不接入 AKShare 网络爬取、Qlib、AKQuant 或 TradingAgents；这些属于未来版本。
-2. 不部署反向代理、公网入口、MCP remote executor、ChatGPT → Harness 自动任务派发。
-3. 不创建定时任务或启用任何自动订单。
-4. 不请求服务器 root 全局控制权；只使用部署所需最小权限。
+所有接口（/healthz 除外）使用 ENGINE_API_TOKEN：
 
+- GET /v1/market-data
+- POST /v1/market-data/sync
+- GET /v1/market-data/{symbol}
+- POST /v1/backtests/run
+- POST /v1/research/preview
+- 原有 GET /v1/strategies、POST /v1/analysis/preview 保持。
 
-## 动态发现策略的验收（新增）
+## 8. 完成报告
 
-1. 不得向 `.env` 添加 `OTW_STRATEGY_ID`，也不应把任何策略 UUID 硬编码到镜像中。
-2. 验证 `GET /v1/strategies` 未授权拒绝、携带有效 `ENGINE_API_TOKEN` 后返回 OTW 已有策略及其状态。
-3. 若只有一个 active 策略，单次预览不传策略 ID 应自动选中该策略；若有多个 active，必须传 `strategy_id` 或使用 `--all-active` 批量只读预览。
-4. 不要把自动发现解释为自动启用交易；v0.1 的批量处理仍只输出本地分析报告，不能写入 runs 或 orders。
-5. 目前单个策略如包含多个资产，v0.1 应明确拒绝单标的预览，直到后续版本实现逐资产研究和组合风控。
+只需简要报告：
+- 部署分支和 Git SHA；
+- 容器健康状态；
+- AKShare 版本；
+- 601118 和 RU0 的数据源、条数、起止日期、复权口径及质量警告；
+- 两份回测结果文件是否成功生成并保存在 /data/reports；
+- 研究快照是否生成；
+- 确认 OTW runs/orders/documents 未变化、没有新增任务、MCP token 权限未变化。
+
+不要打印任何 token 或 .env 内容。
+
+## 回滚
+
+如 v0.2 启动失败，停止本项目容器即可。保留 data/ 和旧备份分支；切回备份分支重建旧镜像。不要使用 docker compose down -v，不触碰 OTW/DeepSeek Harness 或其他服务。

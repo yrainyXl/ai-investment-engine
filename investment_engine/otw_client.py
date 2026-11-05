@@ -1,13 +1,15 @@
-"""Small read-only HTTP client using verified OTW API paths.
+"""Read-only OTW HTTP client using verified API paths.
 
-This module deliberately has no POST/PUT/DELETE functions.
+No write methods are defined. Strategy discovery is dynamic; no global strategy
+ID environment variable is required.
 """
 from __future__ import annotations
+
 import json
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
 
 class OTWError(RuntimeError):
@@ -45,6 +47,41 @@ class OTWReadClient:
                 return content
         except (HTTPError, URLError, ValueError) as exc:
             raise OTWError(f"OTW GET failed for {path}: {exc}") from exc
+
+    def list_strategies(self) -> list[dict[str, Any]]:
+        """Discover paper strategies from OTW instead of deploying per-strategy env."""
+        data = self.get("/api/paper-trading/strategies")
+        strategies = data.get("strategies")
+        if not isinstance(strategies, list):
+            raise OTWError("OTW strategies response must contain a list")
+        seen: set[str] = set()
+        for item in strategies:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+                raise OTWError("OTW returned a malformed strategy")
+            _validate_uuid(item["id"])
+            if item["id"] in seen:
+                raise OTWError("OTW returned duplicate strategy IDs")
+            seen.add(item["id"])
+        return strategies
+
+    def active_strategies(self) -> list[dict[str, Any]]:
+        return [s for s in self.list_strategies() if s.get("status") == "active"]
+
+    def resolve_strategy_id(self, strategy_id: str | None = None) -> str:
+        """Explicit ID wins; otherwise select only when exactly one active exists.
+
+        Do not silently choose the first of multiple active portfolios.
+        For batch preview, use list_strategies()/active_strategies() explicitly.
+        """
+        if strategy_id:
+            _validate_uuid(strategy_id)
+            return strategy_id
+        active = self.active_strategies()
+        if len(active) == 1:
+            return active[0]["id"]
+        if not active:
+            raise OTWError("No active paper strategy found; inspect GET /v1/strategies")
+        raise OTWError("Multiple active paper strategies; supply strategy_id or use --all-active")
 
     def strategy_context(self, strategy_id: str) -> dict[str, Any]:
         _validate_uuid(strategy_id)

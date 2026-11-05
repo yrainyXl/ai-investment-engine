@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
-from .market_data import MarketDataError, MarketDataService, MarketDataStore
+from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
 from .research import build_research_snapshot
@@ -177,7 +177,7 @@ def backtest(req: BacktestRequest, authorization: str | None = Header(default=No
     try:
         adjustment = req.adjustment or ("continuous" if req.asset_type == "future" else "qfq")
         bars = _store().load(req.symbol, req.asset_type, adjustment)
-        bars = [x for x in bars if x.timestamp <= as_of.date().isoformat()]
+        bars = completed_daily_bars(bars, as_of=as_of)
         report = run_backtest(
             bars, strategy=req.strategy, fast_period=req.fast_period, slow_period=req.slow_period,
             fee_bps=req.fee_bps, slippage_bps=req.slippage_bps, as_of=as_of.date(),
@@ -217,9 +217,9 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
             "holdings": [{"symbol": item.get("symbol"), "quantity": item.get("quantity")} for item in holdings],
         }
         stock_bars = _store().load(symbol, "stock", "qfq")
-        stock_bars = [x for x in stock_bars if x.timestamp <= as_of.date().isoformat()]
+        stock_bars = completed_daily_bars(stock_bars, as_of=as_of)
         futures_bars = _store().load(req.futures_symbol, "future", "continuous") if req.futures_symbol else []
-        futures_bars = [x for x in futures_bars if x.timestamp <= as_of.date().isoformat()]
+        futures_bars = completed_daily_bars(futures_bars, as_of=as_of)
         report = build_research_snapshot(
             strategy_id=strategy_id, symbol=symbol, thesis_content=thesis_content,
             stock_bars=stock_bars, futures_symbol=req.futures_symbol,

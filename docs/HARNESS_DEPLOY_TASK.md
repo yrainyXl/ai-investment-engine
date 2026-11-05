@@ -55,7 +55,7 @@ docker run --rm --network none ai-investment-engine:0.1 \
 
 - 根据 `.env.example` 在项目目录创建未纳入 Git 管理的 `.env`，权限设为 600。
 - `ENGINE_MODE=preview`。
-- `OTW_BASE_URL` 指向服务端能访问的 OTW HTTPS API 地址（如果同机走回环，可用 `http://127.0.0.1:<受控端口>`）。
+- `OTW_BASE_URL` 指向**引擎容器内部实际可访问**的 OTW HTTPS API 地址。注意：Docker 容器里的 `127.0.0.1` 指向容器自身，而不是宿主机；不要盲目使用宿主机回环地址。若需要 Docker 内网 HTTP/专用 CA，先提交网络与证书适配方案供审核，不能临时关闭 TLS 或放宽客户端传输检查。
 - `OTW_API_TOKEN` 由 OTW 管理端生成或安全注入，应限制到本策略所需的**只读**范围；如果当前服务端没有相应的 token/权限，停止真实数据联调并报告，不应复用不明来源的凭证。
 - `OTW_STRATEGY_ID` 使用 OTW 现有“ai chatgpt海南个股投资”模拟策略 ID，不创建新策略。
 - `ENGINE_API_TOKEN` 为单独生成的高强度随机密钥，仅控制对本引擎预览 API 的访问；它与 `OTW_API_TOKEN` **必须不同**。

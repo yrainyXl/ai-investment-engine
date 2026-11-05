@@ -1,6 +1,6 @@
 # DeepSeek Harness 执行任务：升级 AI Investment Engine v0.2
 
-目标分支：feat/phase2-market-data-backtesting
+目标部署 ref：main（先合并本项目 PR #1）
 部署目录：/opt/apps/ai-investment-engine
 当前线上版本：v0.1.1，127.0.0.1:8018
 
@@ -14,10 +14,10 @@
 
 1. 检查工作区干净和当前部署 SHA，保留当前本地 main，不执行 reset --hard。
 2. git fetch origin。
-3. 确认远端分支 feat/phase2-market-data-backtesting 存在。
+3. 确认 PR #1 已合并，且 origin/main 已包含 v0.2。若尚未合并，停止并报告，不要提前部署未合并代码。
 4. 为当前部署版本创建本地备份分支，例如 backup/engine-v0.1.1。
-5. 切换到远端目标分支的本地跟踪分支。不要删除备份分支。
-6. 不要把 .env、data/、本地报告或任何密钥提交 Git。
+5. 不要切换或重置当前本地 main（它包含服务器上此前未推送的提交）。从 origin/main 新建独立部署分支：git switch -c deploy/v0.2 origin/main。
+6. 不要删除备份分支，也不要把 .env、data/、本地报告或任何密钥提交 Git。
 
 ## 2. 保留并补充环境配置
 

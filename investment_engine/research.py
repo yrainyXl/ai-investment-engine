@@ -7,7 +7,7 @@ from statistics import pstdev
 from typing import Any, Sequence
 
 from .analysis import REQUIRED_FACTORS, flatten_tiptap, parse_time
-from .market_data import Bar
+from .market_data import Bar, completed_daily_bars
 
 
 def summarize_price_series(bars: Sequence[Bar]) -> dict[str, Any]:
@@ -147,6 +147,8 @@ def build_research_snapshot(*, strategy_id: str, symbol: str, thesis_content: An
                              strategy_name: str | None = None, thesis_updated_at: str | None = None,
                              account_summary: dict[str, Any] | None = None,
                              as_of: datetime) -> dict[str, Any]:
+    stock_bars = completed_daily_bars(stock_bars, as_of=as_of)
+    futures_bars = completed_daily_bars(futures_bars, as_of=as_of)
     stock_summary = summarize_price_series(stock_bars)
     futures_summary = summarize_price_series(futures_bars)
     return {

@@ -56,9 +56,14 @@ def review_evidence(raw: dict[str, Any], as_of: datetime) -> dict[str, Any]:
             item = {}
         state = item.get("state", "unknown")
         timestamp = parse_time(item.get("published_at"))
+        effective = parse_time(item.get("effective_at"))
+        retrieved = parse_time(item.get("retrieved_at"))
         url = item.get("source_url", "")
         declared_verified = item.get("reviewed_by_human") is True
-        time_valid = timestamp is not None and timestamp <= as_of
+        time_valid = (
+            timestamp is not None and effective is not None and retrieved is not None
+            and timestamp <= as_of and effective <= as_of and retrieved <= as_of
+        )
         acceptable_url = isinstance(url, str) and url.startswith("https://")
         status = state if state in ("supporting", "contradicting") and time_valid and acceptable_url and declared_verified else "unknown"
         checked[name] = {
@@ -66,7 +71,7 @@ def review_evidence(raw: dict[str, Any], as_of: datetime) -> dict[str, Any]:
             "detail": str(item.get("summary", ""))[:400],
             "source_url": url if acceptable_url else "",
             "published_at": item.get("published_at") if time_valid else None,
-            "review_mode": "manually_marked; NOT independently source-verified" if status != "unknown" else "unverified",
+            "review_mode": "manually_marked; provenance timestamps checked, source not independently fetched" if status != "unknown" else "unverified or incomplete provenance",
         }
     statuses = [v["status"] for v in checked.values()]
     if "contradicting" in statuses:
@@ -75,7 +80,7 @@ def review_evidence(raw: dict[str, Any], as_of: datetime) -> dict[str, Any]:
         hypothesis = "conditionally_supported"
     else:
         hypothesis = "insufficient_evidence"
-    return {"hypothesis": hypothesis, "factors": checked, "provenance_warning": "Evidence is user-supplied; URLs were not fetched or independently confirmed in v0.1."}
+    return {"hypothesis": hypothesis, "factors": checked, "provenance_warning": "Evidence is user-supplied; source URLs are not independently fetched. Eligible records require publication, effective and retrieval timestamps no later than as_of."}
 
 
 def read_bars(path: str | Path | None, as_of: datetime) -> dict[str, Any]:

@@ -26,10 +26,17 @@ def run_pipeline(*, source: str, as_of: datetime, strategy_id: str = "", client:
         context = json.loads((ROOT / "fixtures" / "context.synthetic.json").read_text(encoding="utf8"))
         thesis = json.loads((ROOT / "fixtures" / "thesis.synthetic.json").read_text(encoding="utf8"))
     elif source == "otw":
-        if not client or not strategy_id:
-            raise ValueError("OTW mode requires a client and strategy_id")
+        if not client:
+            raise ValueError("OTW mode requires a read-only client")
+        # Discover an unambiguous active strategy; explicit IDs remain per-run inputs.
+        strategy_id = client.resolve_strategy_id(strategy_id)
         context = client.strategy_context(strategy_id)
         holdings = context.get("account", {}).get("holdings", [])
+        if not isinstance(holdings, list):
+            raise OTWError("OTW holdings must be a list")
+        # v0.1 is single-asset only: do not silently use the first asset.
+        if len(holdings) > 1:
+            raise OTWError("Multi-asset strategy preview requires future per-asset analysis")
         asset_id = holdings[0].get("id") if holdings else None
         thesis = client.asset_thesis(strategy_id, asset_id) if asset_id else None
     else:

@@ -90,12 +90,16 @@ def read_bars(path: str | Path | None, as_of: datetime) -> dict[str, Any]:
         with open(path, encoding="utf-8-sig", newline="") as f:
             rows = list(csv.DictReader(f))
         parsed: list[tuple[str, float]] = []
+        local_as_of = as_of.astimezone(SH)
+        market_closed = local_as_of.hour * 60 + local_as_of.minute >= 15 * 60 + 5
         for row in rows:
             date = row["date"]
             dt = datetime.fromisoformat(date).date()
             price = float(row["close"])
-            if dt > as_of.astimezone(SH).date() or not math.isfinite(price) or price <= 0:
+            if dt > local_as_of.date() or not math.isfinite(price) or price <= 0:
                 return {"status": "invalid", "reason": "Future-dated or invalid close found", "eligible_for_trading": False}
+            if dt == local_as_of.date() and not market_closed:
+                continue
             parsed.append((date, price))
         if len(set(d for d, _ in parsed)) != len(parsed) or parsed != sorted(parsed):
             return {"status": "invalid", "reason": "Duplicate or non-monotonic dates", "eligible_for_trading": False}

@@ -270,8 +270,13 @@ class MarketDataService:
     def sync(self, *, symbol: str, asset_type: str, start_date: str, end_date: str,
              adjustment: str = "qfq") -> dict[str, Any]:
         provider = self.provider or AKShareProvider()
-        bars = provider.fetch(symbol=symbol, asset_type=asset_type, start_date=start_date,
-                              end_date=end_date, adjustment=adjustment)
+        try:
+            bars = provider.fetch(symbol=symbol, asset_type=asset_type, start_date=start_date,
+                                  end_date=end_date, adjustment=adjustment)
+        except MarketDataError:
+            raise
+        except Exception as exc:
+            raise MarketDataError(f"AKShare request failed: {type(exc).__name__}") from exc
         path = self.store.save(bars)
         stored_adjustment = "continuous" if asset_type == "future" else adjustment
         all_bars = self.store.load(symbol, asset_type, stored_adjustment)

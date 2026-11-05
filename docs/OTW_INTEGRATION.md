@@ -4,7 +4,7 @@
 
 | 资源 | 现有接口 | 当前使用建议 |
 |---|---|---|
-| 纸面策略列表 | GET `/api/paper-trading/strategies` | 寻找策略并核对状态 |
+| 纸面策略列表 | GET `/api/paper-trading/strategies` | 动态发现策略/关联投资组合；无需配置全局 OTW_STRATEGY_ID |
 | 当前账户 | GET `/api/paper-trading/strategies/{id}/context` | 引擎直接 GET；现金/权益/持仓权威读取 |
 | 历史分析 | GET `/api/paper-trading/strategies/{id}/runs` | 读取已执行判断，包括 no_trade |
 | 保存分析 | POST `/api/paper-trading/strategies/{id}/runs` | **v0.1 不调用**；未来与幂等键联合使用 |
@@ -31,3 +31,12 @@
 - 研究历史曾有价格多源不一致和交易所原始数据未核实情况，不能把参考报价当作正式成交价/结算价。
 - ChatGPT MCP 有效不代表任意服务器上的 `OTW_API_TOKEN` 可用。生产鉴权、网段、TLS 以及访问审计必须由用户侧验证。
 - 2026-11-05 的接口只读核查与项目生成均未创建 run、订单、策略或文档。
+
+### 引擎 v0.1.1 的动态发现策略
+
+- 每次读取 OTW `GET /api/paper-trading/strategies` 获取可见列表，使用 OTW 返回的 `id`、`portfolio_id` 和 `status` 标识模拟账户。
+- `GET /v1/strategies` 在引擎侧提供经过 `ENGINE_API_TOKEN` 鉴权的只读策略列表。
+- `POST /v1/analysis/preview` 用请求体 `strategy_id` 选择目标；若省略，只允许恰好一个 active 策略时自动推断，多于一个 active 时返回 409。
+- CLI `--list-strategies` 列出全部可见模拟策略；`--all-active` 只读遍历 active 策略（不发送 OTW POST、PUT 或任何模拟订单）。
+- 在后续版本中引入独立的**策略运行注册表**，区分 OTW 的模拟投资账户 ID 与研究算法策略 ID。新发现的模拟账户应默认处于未启用自动交易状态，只有完成研究算法、历史数据、风险规则绑定与审批后才允许自动执行。
+- v0.1 的每次分析仍仅支持单标的，遇到多资产组合明确报错，避免把首只资产的分析误认为整个账户的结论。

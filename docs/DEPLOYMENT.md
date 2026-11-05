@@ -1,84 +1,61 @@
-# GitHub 与服务端操作（可交由 DeepSeek Harness 执行）
+# Deployment notes for AI Investment Engine v0.2
 
-## 1. 源码仓库（已创建）
+Production-like deployment is performed by the user's DeepSeek Harness on the user's server. Do not copy server secrets into ChatGPT, GitHub, Issues, logs or this repository.
 
-目标仓库：`https://github.com/yrainyXl/ai-investment-engine`。建议将当前 Public 仓库改为 Private。
+## Runtime configuration
 
-由 Harness 在服务器上从 `main` 拉取代码；使用 deploy key 或已有凭证，不要把 token 塞进 URL。不得擅自删除正在运行的 OTW 或 DeepSeek Harness 服务。
+Keep the existing server-only OTW and engine tokens. The deployed OTW transport is MCP:
 
-如果采用 HTTPS remote，请使用 GitHub 提供的标准认证，不要将个人访问令牌写进 shell 命令、README 或代码。
+~~~dotenv
+OTW_TRANSPORT=mcp
+ENGINE_DATA_DIR=/data
+MARKET_DATA_PROVIDER=akshare
+MARKET_DATA_DEFAULT_START_DATE=20180101
+MARKET_DATA_DEFAULT_ADJUSTMENT=qfq
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+~~~
 
-## 2. 优先在本地验证
+PIP_INDEX_URL is passed only as a Docker build argument. Dockerfile defaults to official PyPI; the mirror is configurable per environment.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[api,test]'
-make test
-make demo
-```
+## Persistent data directory
 
-此步骤只使用**合成数据**，不会访问 OTW。
+Compose mounts ./data to /data. The container runs as nobody (UID 65534), so create and assign the host directory before deployment:
 
-## 3. 使用真实 OTW 做只读验证
+~~~bash
+mkdir -p data
+sudo chown 65534:65534 data
+chmod 750 data
+~~~
 
-```bash
-export OTW_BASE_URL='https://YOUR_OTW_HOST'
-# 使用秘密管理器或私有环境变量注入 token，不要提交 .env
-export OTW_API_TOKEN='YOUR_READ_ONLY_TOKEN'
-python -m investment_engine.cli --source otw --list-strategies
-python -m investment_engine.cli --source otw --out output/otw-preview.json
-# 多个 active 策略时，选择指定 UUID 或仅进行批量只读预览：
-python -m investment_engine.cli --source otw --strategy-id '<从 OTW 返回的 UUID>' --out output/one.json
-python -m investment_engine.cli --source otw --all-active --out output/all-active.json
-```
+The data directory is gitignored and must not be committed.
 
-确认输出中的 `strategy_id`、`account_summary`、`thesis.updated_at` 与 OTW 前台一致。此过程不会创建 runs 和 orders。
+## Deploy
 
-**警告**：如果当前 OTW token 不是 HTTP Bearer 或服务器不允许该权限，不要反复尝试猜测鉴权；查看后端实际配置，并由部署端修复。不要把 token 发进 ChatGPT。
+Read and follow [HARNESS_DEPLOY_TASK.md](HARNESS_DEPLOY_TASK.md). The current development branch is feat/phase2-market-data-backtesting. Do not overwrite the deployed v0.1.1 local branch or discard its local commits; preserve a backup branch before switching.
 
-## 4. 后续需要服务进程时（暂不安排定时任务）
-
-本机方式：
-
-```bash
-uvicorn investment_engine.api:app --host 127.0.0.1 --port 8018
-```
-
-推荐 Docker Compose（先准备不入库的 `.env`）：
-
-```bash
-cp .env.example .env
-chmod 600 .env
-# 通过服务器密钥管理方式填写 OTW_BASE_URL、OTW_API_TOKEN、ENGINE_API_TOKEN
-# 注意：ENGINE_API_TOKEN 必须与 OTW_API_TOKEN 不同。
+~~~bash
 docker compose config --quiet
-docker compose up -d --build
+docker compose up -d --build engine
 docker compose ps
 curl --fail http://127.0.0.1:8018/healthz
-```
+~~~
 
-真实只读验证（不要在命令、输出和日志中暴露 Token）：
+The service must remain bound to 127.0.0.1:8018.
 
-```bash
-docker compose run --rm --no-deps engine python -m investment_engine.cli \
-  --source otw --out /tmp/otw-preview.json
-```
+## First data sync
 
-完整逐项说明及失败处理见 `docs/HARNESS_DEPLOY_TASK.md`。
+~~~bash
+docker compose exec -T engine python -m investment_engine.market_cli sync \
+  --asset-type stock --symbol 601118 --start-date 20180101 \
+  --end-date 20261105 --adjustment qfq
 
-`-p 127.0.0.1:...` 很重要，确保预览 API 不被直接暴露到公网。若未来需要从 OTW 容器访问，请改成受控内部网络 + 服务鉴权，而不是无鉴权公网端点。
+docker compose exec -T engine python -m investment_engine.market_cli sync \
+  --asset-type future --symbol RU0 --start-date 20180101 \
+  --end-date 20261105 --adjustment continuous
+~~~
 
-## 5. 不应在这一轮做的事情
+AKShare public endpoints can change. If a provider call fails, report it and leave the series unavailable; never replace it with synthetic or unverified data.
 
-- 不要关停已有 ChatGPT 每日四次分析任务。
-- 不要将旧实验自动成交冻结改成开启。
-- 不要为测试创建模拟成交或重置现有纸面持仓。
-- 不要安装仓库中的第三方 Skill 后直接赋予写入 OTW /orders 的权限。
-- 不要把投资服务接真实券商交易 API。
+## Safety boundary
 
-下一轮以真实只读数据的端到端验收为基础，再考虑补历史 K 线、研究插件与回测。
-
-## 多策略发现与审批边界
-
-无需把策略 ID 放入环境变量，也无需因为增加模拟账户而重启容器。使用 `GET /v1/strategies` 动态列举经 OTW 授权可见的策略；`POST /v1/analysis/preview` 通过请求体 `strategy_id` 指定分析目标。若未指定且仅存在一个 active 策略，自动选择；若有多个 active，则要求显式选择，以免误分析错误账户。CLI 的 `--all-active` 可逐个运行全部 active 策略的**只读预览**。研究规则、证据和回测数据将来需与各策略单独关联，不能跨策略复用。自动发现不表示自动执行交易。
+This version only reads OTW through otw_read. It writes market data to the engine's own ./data directory and local backtest reports. It does not create OTW runs, orders or document updates, does not enable trading, and does not schedule recurring jobs.

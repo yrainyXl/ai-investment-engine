@@ -85,14 +85,14 @@ docker compose exec -T engine python -m investment_engine.market_cli list
 docker compose exec -T engine python -m investment_engine.market_cli backtest \
   --symbol 601118 --asset-type stock --adjustment qfq \
   --strategy sma_trend --fast-period 20 --slow-period 60 \
-  --fee-bps 10 --slippage-bps 5 --out /tmp/601118-sma.json
+  --fee-bps 10 --slippage-bps 5 --out /data/reports/601118-sma.json
 
 docker compose exec -T engine python -m investment_engine.market_cli backtest \
   --symbol 601118 --asset-type stock --adjustment qfq \
-  --strategy buy_and_hold --out /tmp/601118-buy-hold.json
+  --strategy buy_and_hold --out /data/reports/601118-buy-hold.json
 
 docker compose exec -T engine python -m investment_engine.market_cli research \
-  --futures-symbol RU0 --out /tmp/hainan-rubber-research.json
+  --futures-symbol RU0 --out /data/reports/hainan-rubber-research.json
 ~~~
 
 回测输出只写本地文件，不代表交易建议。研究快照应显示 OHLCV 观察、RU0 参考序列（若同步成功）、四项基本面假设的证据缺口。
@@ -115,7 +115,7 @@ docker compose exec -T engine python -m investment_engine.market_cli research \
 - 容器健康状态；
 - AKShare 版本；
 - 601118 和 RU0 的数据源、条数、起止日期、复权口径及质量警告；
-- 两份回测结果文件是否成功生成；
+- 两份回测结果文件是否成功生成并保存在 /data/reports；
 - 研究快照是否生成；
 - 确认 OTW runs/orders/documents 未变化、没有新增任务、MCP token 权限未变化。
 

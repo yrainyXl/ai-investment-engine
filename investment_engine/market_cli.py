@@ -78,8 +78,8 @@ def main() -> None:
     else:
         from .analysis import parse_time, flatten_tiptap
         as_of = parse_time(args.as_of)
-        if as_of is None:
-            parser.error("--as-of must be an RFC3339 timestamp with timezone")
+        if as_of is None or as_of > datetime.now().astimezone():
+            parser.error("--as-of must be a valid non-future RFC3339 timestamp with timezone")
         client = OTWReadClient(
             os.getenv("OTW_BASE_URL", ""), os.getenv("OTW_API_TOKEN", ""),
             transport=os.getenv("OTW_TRANSPORT", "mcp"),
@@ -94,8 +94,6 @@ def main() -> None:
                 parser.error("Specify --symbol when the OTW strategy has zero or multiple holdings")
             symbol = symbols[0]
         matched = next((item for item in holdings if str(item.get("symbol")) == symbol), None)
-        if not matched and len(holdings) == 1:
-            matched = holdings[0]
         thesis = client.asset_thesis(strategy_id, matched["id"]) if matched and matched.get("id") else None
         thesis_content = thesis.get("document", {}).get("content", {}) if thesis else {}
         stock_bars = [x for x in store.load(symbol, "stock", "qfq") if x.timestamp <= as_of.date().isoformat()]

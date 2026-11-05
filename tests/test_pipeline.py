@@ -61,3 +61,53 @@ def test_tiptap_extract():
 def test_future_as_of_is_rejected():
     with pytest.raises(ValueError):
         run_pipeline(source="fixture", as_of=datetime(2099, 1, 1, tzinfo=timezone.utc))
+
+
+def test_otw_dynamic_discovery_and_unique_active():
+    payload = {"strategies": [
+        {"id": "10000000-0000-4000-8000-000000000001", "name": "Current", "status": "active"},
+        {"id": "10000000-0000-4000-8000-000000000003", "name": "Archived", "status": "ended"},
+    ]}
+    client = OTWReadClient("https://otw.example", "TEST_TOKEN")
+    client.get = lambda path: payload
+    assert len(client.list_strategies()) == 2
+    assert client.resolve_strategy_id() == payload["strategies"][0]["id"]
+
+
+def test_otw_ambiguous_active_requires_explicit_id():
+    first = "10000000-0000-4000-8000-000000000001"
+    second = "10000000-0000-4000-8000-000000000003"
+    client = OTWReadClient("https://otw.example", "TEST_TOKEN")
+    client.get = lambda path: {"strategies": [
+        {"id": first, "status": "active"}, {"id": second, "status": "active"}]}
+    with pytest.raises(OTWError, match="Multiple active"):
+        client.resolve_strategy_id()
+    assert client.resolve_strategy_id(second) == second
+
+
+def test_otw_pipeline_uses_dynamic_selection(monkeypatch):
+    client = OTWReadClient("https://otw.example", "TEST_TOKEN")
+    fixture = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "context.synthetic.json").read_text())
+    sid = fixture["strategy"]["id"]
+    client.get = lambda path: (
+        {"strategies": [{"id": sid, "status": "active"}]}
+        if path == "/api/paper-trading/strategies" else
+        fixture if path.endswith("/context") else
+        {"document": {"content": {"type": "doc", "content": []}, "updated_at": "2026-11-01T00:00:00Z"}}
+    )
+    result = run_pipeline(source="otw", as_of=NOW, client=client)
+    assert result["strategy_id"] == sid
+    assert result["decision"] == "no_trade"
+    assert result["execution"]["order_submitted"] is False
+
+
+def test_multi_asset_strategy_is_not_silently_reduced_to_first():
+    client = OTWReadClient("https://otw.example", "TEST_TOKEN")
+    fixture = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "context.synthetic.json").read_text())
+    fixture["account"]["holdings"].append({
+        "id": "10000000-0000-4000-8000-000000000004", "symbol": "DEMO002", "quantity": 0
+    })
+    sid = fixture["strategy"]["id"]
+    client.get = lambda path: fixture
+    with pytest.raises(OTWError, match="Multi-asset"):
+        run_pipeline(source="otw", as_of=NOW, strategy_id=sid, client=client)

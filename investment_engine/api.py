@@ -7,7 +7,7 @@ from hmac import compare_digest
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .analysis import parse_time
@@ -75,7 +75,7 @@ def _store() -> MarketDataStore:
 
 
 def _as_of(value: str | None) -> datetime:
-    parsed = parse_time(value) if value else datetime.now(timezone.utc)
+    parsed = parse_time(value) if value else datetime.now(ZoneInfo('Asia/Shanghai'))
     if parsed is None or parsed.tzinfo is None:
         raise HTTPException(422, "as_of must be an RFC3339 timestamp with timezone")
     if parsed > datetime.now(timezone.utc):

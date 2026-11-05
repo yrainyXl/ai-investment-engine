@@ -84,9 +84,11 @@ def run_backtest(bars: Sequence[Bar], *, strategy: str = "sma_trend", fast_perio
             close_signals[i] = int(closes[i] > fast and fast > slow)
 
     # Return i is open[i] -> open[i+1]; position[i] was decided at close[i-1].
-    positions = [0] + close_signals[:-1]
     gross_returns = [opens[i + 1] / opens[i] - 1.0 for i in range(len(opens) - 1)]
-    positions = positions[:len(gross_returns)]
+    if strategy == "buy_and_hold":
+        positions = [1] * len(gross_returns)
+    else:
+        positions = ([0] + close_signals[:-1])[:len(gross_returns)]
     cost_rate = (fee_bps + slippage_bps) / 10000.0
     turnover: list[float] = []
     net_returns: list[float] = []
@@ -109,6 +111,7 @@ def run_backtest(bars: Sequence[Bar], *, strategy: str = "sma_trend", fast_perio
         "signal": "close-based SMA fast/slow; long-only; no leverage",
         "execution_model": "signal after close[t], enter/exit at open[t+1], measure open-to-open returns",
         "lookahead_bias_control": "signal shifted by one session; no same-bar close execution",
+        "first_entry_execution_date": next((rows[i].timestamp for i, p in enumerate(positions) if p == 1), None),
         "data": {
             "symbol": rows[0].symbol, "asset_type": rows[0].asset_type,
             "source": rows[0].source, "adjustment": rows[0].adjustment,

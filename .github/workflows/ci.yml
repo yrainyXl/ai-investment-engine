@@ -16,3 +16,4 @@ jobs:
       - run: python -m pip install -e '.[api,test]'
       - run: python -m pytest -q
       - run: python -m investment_engine.cli --source fixture --out /tmp/fixture-preview.json
+      - run: python -m investment_engine.market_cli --help

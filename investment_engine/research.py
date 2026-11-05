@@ -58,11 +58,12 @@ def _typed_evidence(items: Any, *, as_of: datetime, kind: str) -> list[dict[str,
         url = raw.get("source_url")
         reviewed = raw.get("reviewed_by_human") is True
         valid = bool(
-            published and effective and published <= as_of and effective <= as_of
+            published and effective and retrieved and published <= as_of and effective <= as_of and retrieved <= as_of
             and isinstance(url, str) and url.startswith("https://") and reviewed
         )
         output.append({
             "type": kind,
+            "factor": str(raw.get("factor", "")),
             "title": str(raw.get("title", ""))[:160],
             "detail": str(raw.get("detail", ""))[:800],
             "source_url": url if isinstance(url, str) and url.startswith("https://") else None,
@@ -92,7 +93,7 @@ def assess_hypotheses(evidence: dict[str, Any] | None, *, as_of: datetime) -> di
     for name in REQUIRED_FACTORS:
         needed = requirements[name]
         eligible = [item for item in (facts if needed == "confirmed_fact" else expectations)
-                    if item["accepted_for_assessment"] and name in (item["title"] + " " + item["detail"]).lower().replace(" ", "_")]
+                    if item["accepted_for_assessment"] and item.get("factor") == name]
         # Explicit factor records remain supported for backwards compatibility.
         explicit = factors.get(name, {}) if isinstance(factors, dict) else {}
         if isinstance(explicit, dict):

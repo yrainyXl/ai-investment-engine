@@ -1,0 +1,5 @@
+{
+  "_warning": "SYNTHETIC TEST DATA. NOT REAL OTW VALUES OR LIVE QUOTES.",
+  "strategy": {"id": "10000000-0000-4000-8000-000000000001", "name": "Synthetic Test Strategy", "status": "active", "currency": "CNY", "max_order_value": 3000.0, "max_position_pct": 0.5},
+  "account": {"cash": 10000.0, "equity": 10000.0, "currency": "CNY", "holdings": [{"id": "10000000-0000-4000-8000-000000000002", "symbol": "DEMO000", "quantity": 0, "price": 10.0, "last_price_at": "2026-01-01T09:00:00Z"}], "unpriced_holdings": []}
+}

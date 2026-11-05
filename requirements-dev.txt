@@ -1,0 +1,2 @@
+# Install editable package and optional API/test dependencies with:
+# python -m pip install -e '.[api,test]'

@@ -1,0 +1,9 @@
+{
+  "_note": "Fill with researched facts. reviewed_by_human does NOT mean the engine independently checked the URL. v0.1 always prohibits order submission.",
+  "factors": {
+    "actual_supply_change": {"state": "unknown", "summary": "", "source_url": "", "published_at": "", "reviewed_by_human": false},
+    "multiweek_inventory_trend": {"state": "unknown", "summary": "", "source_url": "", "published_at": "", "reviewed_by_human": false},
+    "profit_pass_through": {"state": "unknown", "summary": "", "source_url": "", "published_at": "", "reviewed_by_human": false},
+    "priced_market_expectations": {"state": "unknown", "summary": "", "source_url": "", "published_at": "", "reviewed_by_human": false}
+  }
+}

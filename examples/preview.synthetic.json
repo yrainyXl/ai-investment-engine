@@ -1,0 +1,115 @@
+{
+  "schema_version": "0.1",
+  "local_run_id": "e8ba0839-b7a4-4178-b69a-9bb8c88e8081",
+  "idempotency_key": "engine-v01-084aba6d695dc1e8",
+  "source": "fixture",
+  "strategy_id": "10000000-0000-4000-8000-000000000001",
+  "as_of": "2026-11-05T02:52:09.691287+00:00",
+  "account_summary": {
+    "currency": "CNY",
+    "cash": 10000.0,
+    "equity": 10000.0,
+    "holdings": [
+      {
+        "symbol": "DEMO000",
+        "quantity": 0,
+        "asset_id": "10000000-0000-4000-8000-000000000002",
+        "reference_price": 10.0,
+        "last_price_at": "2026-01-01T09:00:00Z"
+      }
+    ]
+  },
+  "thesis": {
+    "available": true,
+    "updated_at": "2026-01-01T09:00:00Z",
+    "excerpt": "SYNTHETIC THESIS: Insufficient evidence. No simulated orders authorized."
+  },
+  "research": {
+    "hypothesis": "insufficient_evidence",
+    "factors": {
+      "actual_supply_change": {
+        "status": "unknown",
+        "detail": "",
+        "source_url": "",
+        "published_at": null,
+        "review_mode": "unverified"
+      },
+      "multiweek_inventory_trend": {
+        "status": "unknown",
+        "detail": "",
+        "source_url": "",
+        "published_at": null,
+        "review_mode": "unverified"
+      },
+      "profit_pass_through": {
+        "status": "unknown",
+        "detail": "",
+        "source_url": "",
+        "published_at": null,
+        "review_mode": "unverified"
+      },
+      "priced_market_expectations": {
+        "status": "unknown",
+        "detail": "",
+        "source_url": "",
+        "published_at": null,
+        "review_mode": "unverified"
+      }
+    },
+    "provenance_warning": "Evidence is user-supplied; URLs were not fetched or independently confirmed in v0.1."
+  },
+  "quant": {
+    "status": "unavailable",
+    "reason": "No historical bars provided; OTW histdata datasets are currently empty.",
+    "bar_count": 0,
+    "eligible_for_trading": false
+  },
+  "proposal": "no_trade",
+  "proposal_rationale": "Insufficient verified evidence and/or history for a transaction.",
+  "risk": {
+    "approved": true,
+    "reasons": [],
+    "execution_enabled": false,
+    "otw_service_side_risk_checks_required": true
+  },
+  "decision": "no_trade",
+  "execution": {
+    "mode": "read_only_preview",
+    "order_submitted": false,
+    "run_recorded_to_otw": false
+  },
+  "limits": [
+    "No LLM integration yet",
+    "CSV data and user evidence are not source-verified",
+    "No executable backtest yet",
+    "No new OTW data or order mutations"
+  ],
+  "otw_run_preview": {
+    "idempotency_key": "engine-v01-084aba6d695dc1e8",
+    "scheduled_at": "2026-11-05T02:52:09.691287+00:00",
+    "decision": "no_trade",
+    "confidence": 0,
+    "evidence": [
+      "actual_supply_change: unknown (review: unverified)",
+      "multiweek_inventory_trend: unknown (review: unverified)",
+      "profit_pass_through: unknown (review: unverified)",
+      "priced_market_expectations: unknown (review: unverified)"
+    ],
+    "market_facts": {
+      "as_of": "2026-11-05T02:52:09.691287+00:00",
+      "quant_status": "unavailable",
+      "account_source": "fixture"
+    },
+    "market_expectations": {
+      "priced_market_expectations": "unknown"
+    },
+    "inference": "Insufficient verified evidence and/or history for a transaction.",
+    "risk_assessment": {
+      "pretrade_approved": true,
+      "reasons": [],
+      "proposal": "no_trade",
+      "execution_enabled": false,
+      "engine_version": "0.1.0"
+    }
+  }
+}

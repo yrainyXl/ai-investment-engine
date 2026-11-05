@@ -84,7 +84,7 @@ def test_store_refuses_future_rows_when_as_of_is_supplied(tmp_path):
 def test_intraday_as_of_excludes_unfinished_same_day_bar():
     previous = make_bar(date(2026, 11, 4), 10)
     current = make_bar(date(2026, 11, 5), 11)
-    before_close = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
+    before_close = datetime(2026, 11, 5, 2, 0, tzinfo=timezone.utc)  # 10:00 Shanghai
     after_close = datetime(2026, 11, 5, 7, 5, tzinfo=timezone.utc)  # 15:05 Shanghai
     assert [x.timestamp for x in completed_daily_bars([previous, current], as_of=before_close)] == [
         "2026-11-04"

@@ -72,10 +72,15 @@ class OTWReadClient:
             }
             envelope = self._request(self.base_url + "/api/mcp", rpc)
             if envelope.get("error"):
-                raise OTWError("OTW MCP returned a JSON-RPC error")
+                message = str(envelope.get("error", {}).get("message", ""))
+                raise OTWError("HTTP 404: resource not found" if "404" in message else "OTW MCP returned a JSON-RPC error")
             result_block = envelope.get("result")
-            if not isinstance(result_block, dict) or result_block.get("isError") is True:
+            if not isinstance(result_block, dict):
                 raise OTWError("OTW MCP read tool failed")
+            if result_block.get("isError") is True:
+                blocks = result_block.get("content", [])
+                error_text = str(blocks[0].get("text", "")) if blocks and isinstance(blocks[0], dict) else ""
+                raise OTWError("HTTP 404: resource not found" if "404" in error_text else "OTW MCP read tool failed")
             content = result_block.get("content")
             if not isinstance(content, list) or not content or not isinstance(content[0], dict):
                 raise OTWError("OTW MCP returned no text content")

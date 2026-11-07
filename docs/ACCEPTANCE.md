@@ -43,3 +43,15 @@
 - [ ] Validate point-in-time fundamentals, adjusted price semantics and out-of-sample backtests.
 - [ ] Implement idempotent run writes and read-back checks before any paper order.
 - [ ] User explicitly approves the paper-trading restoration.
+
+
+## M3 provider v1
+
+- [ ] CNINFO announcement index resolves 601118 orgId dynamically and stores official source URL + publication timestamp.
+- [ ] CNINFO records remain metadata-only until PDF contents and period scope are independently parsed/verified.
+- [ ] SHFE natural-rubber delivery-warehouse inventory is stored as its own series, not conflated with Qingdao or national social inventory.
+- [ ] Unknown source unit/publication timestamp remains explicitly unknown and cannot fill a thesis evidence gate.
+- [ ] Observation records preserve effective_at, published_at, retrieved_at, source URL, unit, series definition and revision history.
+- [ ] Only human-reviewed, point-in-time-valid, unit/scope-verified records may become supporting/contradicting evidence.
+- [ ] Inferences cannot count as confirmed facts or market expectations.
+- [ ] Industry/disclosure API endpoints are authenticated and read-only; no OTW write route is added.

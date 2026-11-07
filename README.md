@@ -157,7 +157,8 @@ python -m investment_engine.market_cli sync-financials --symbol 601118 --period 
 - GET /v1/strategies：动态读取 OTW 策略列表。
 - POST /v1/analysis/preview：现有只读分析预览。
 - GET /v1/industry/observations：读取本地行业观察记录及 point-in-time 资格状态。
-- GET /v1/fundamentals/disclosures：读取 CNINFO 公告元数据。\n- GET /v1/fundamentals/facts：读取季度报告结构化事实（机器提取、待人工复核）。
+- GET /v1/fundamentals/disclosures：读取 CNINFO 公告元数据。
+- GET /v1/fundamentals/facts：读取季度报告结构化事实（机器提取、待人工复核）。
 - GET /v1/market-data：列出本地数据序列。
 - POST /v1/market-data/sync：获取并缓存指定 symbol 的日线数据。
 - GET /v1/market-data/{symbol}：读取本地缓存。

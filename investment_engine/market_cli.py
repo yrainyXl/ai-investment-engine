@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -111,7 +112,7 @@ def main() -> None:
         }
     elif args.command == "sync-financials":
         as_of = parse_time(args.as_of)
-        period_match = __import__("re").fullmatch(r"(20\\d{2})-Q([1-4])", args.period)
+        period_match = re.fullmatch(r"(20\\d{2})-Q([1-4])", args.period)
         if as_of is None or as_of.tzinfo is None or as_of > datetime.now().astimezone():
             parser.error("--as-of must be a valid non-future RFC3339 timestamp with timezone")
         if not period_match:

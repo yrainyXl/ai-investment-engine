@@ -11,7 +11,7 @@
 |---|---|---|---|
 | M0 施工治理与 DSH 调度通道 | done（基础任务闭环） | 已从当前 ChatGPT 调用 DSH MCP 提交并读取终态；施工总纲和任务台账已入库 | 后续按具体任务复用 Web Session / request_id |
 | M1 v0.1 基础只读研究链 | done（按已收到的服务器验收报告） | DSH 报告 OTW MCP 只读、策略发现、健康检查、20 测试通过、无订单写入 | 不改变既有只读安全边界 |
-| M2 v0.2 行情与基础回测 | partial（已部署） | DSH 现场确认 v0.2 SHA=bbff880、容器 healthy，601118 真实缓存 2031 条、已有 SMA 和 buy-and-hold 报告 | RU0 独立行情缓存缺失，已派发补全任务 |
+| M2 v0.2 行情与基础回测 | partial（行情已验收） | DSH 已部署补丁 SHA f5cc01de，601118 2031 条 + RU0 2143 条有效日线，1 条历史来源异常已隔离审计，容器 healthy | 研究快照刷新和回测绩效详情待确认 |
 | M3 基本面/行业证据 | planned | 已定义证据模型与四项假设门槛 | 真实库存、供给、现货、财报、预期数据源 |
 | M4 多策略与实验 | planned | 简单 SMA/持有基线 | 策略注册表、样本外回测、模拟组合隔离 |
 | M5 多 Agent 研究 | planned | 角色架构明确 | 实际模型适配、研究员/反方/风险 Agent |
@@ -28,8 +28,8 @@
 | M1-OTW-001 | ChatGPT + DSH | P0 | done（按既有部署报告） | OTW paper-trading:r token | DSH 报告 v0.1 健康、策略发现、OTW context/document 时间匹配、无 runs/orders 写入 | 保持权限不变 |
 | M2-CODE-001 | ChatGPT | P0 | done（代码） | M1-OTW-001 | [PR #1](https://github.com/yrainyXl/ai-investment-engine/pull/1) 已 merged，merge SHA `bbff880d2b051ee03a0df35678c9027895be1eec`，PR CI 成功 | 用确定 SHA 给 DSH 部署 |
 | M2-DEPLOY-001 | DSH | P0 | done（已存量部署，非本次重部署） | M2-CODE-001 | DSH 在 2026-11-07 20:08 的现场只读报告：git HEAD=`bbff880d2b051ee03a0df35678c9027895be1eec`，分支 `deploy/v0.2`，镜像 `ai-investment-engine:0.2`，/healthz HTTP 200 version=0.2.0，127.0.0.1:8018，healthy | 无需再次部署；保持运行状态 |
-| [M2-MARKET-001](https://github.com/yrainyXl/ai-investment-engine/issues/3) | DSH（执行）/ ChatGPT（评估） | P0 | running（修复部署） | M2-DEPLOY-001 | RU0 首次同步因 2023-08-28 单条 O/H/L/C 异常而失败；DSH 确认 2144 行仅此一条异常，未写入缓存。ChatGPT PR #4 CI 55 passed，已合并 SHA `f5cc01de4608b18af11e03ca596583743588b2e7`；DSH 已接受受控升级与重同步请求 `ai-engine-m2-ru0-deploy-f5cc01de-20261107-v1` | 等待 DSH 返回运行 SHA、RU0 入库行数和隔离审计 |
-| M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | partial | 601118 真实行情缓存 | DSH 已核实 /data/reports/601118-sma.json 与 601118-buy-hold.json 存在，结果为 completed 且 eligible_for_trading=false；尚未核对完整指标和数据日期 | 下轮读取脱敏指标，确认口径并完成验收 |
+| [M2-MARKET-001](https://github.com/yrainyXl/ai-investment-engine/issues/3) | DSH（执行）/ ChatGPT（评估） | P0 | done（行情接入） | M2-DEPLOY-001 | DSH 实际部署 SHA `f5cc01de4608b18af11e03ca596583743588b2e7`，健康 200；RU0 连续 2144 原始、2143 有效、1 条 2023-08-28 异常隔离，quality.valid=true，研究数据范围 2018-01-02→2026-11-06；601118 2031 条未变；缓存 sidecar 已实物验收 | M2-RESEARCH-001 刷新研究快照并核对绩效摘要 |
+| M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | running（绩效复核） | 601118 真实行情缓存 | 两种回测报告均存在且 completed；已发 DSH 只读指标读取任务 request_id=`ai-engine-m2-research-and-metrics-20261107-v1` | 等待实际指标与研究快照回传 |
 | M3-PROVIDER-001 | ChatGPT | P1 | planned | M2 数据口径验收 | 无行业/财报独立 source provider | 实现公告、财报、天然橡胶现货与库存的可追溯读取 |
 | M3-THESIS-001 | ChatGPT | P1 | planned | M3-PROVIDER-001 | 四因素当前仍缺独立证据链 | 记录事实/预期/推断、反证、有效期与失效条件 |
 | M4-REGISTRY-001 | ChatGPT | P1 | planned | M3-THESIS-001 | 未建研究算法与 OTW 账户分离注册表 | 多策略/多组合版本映射，默认 disabled |
@@ -114,3 +114,13 @@ DSH 实际状态：
 - ChatGPT 建立 [Issue #3](https://github.com/yrainyXl/ai-investment-engine/issues/3) 和 [PR #4](https://github.com/yrainyXl/ai-investment-engine/pull/4)；采用精确匹配例外隔离异常、原始记录独立持久化，未改通用严格质量门；GitHub CI 55 passed；Squash merge SHA=`f5cc01de4608b18af11e03ca596583743588b2e7`。
 - DSH 已接受只升级 Investment Engine 并重新获取 RU0 的受控任务 request_id=`ai-engine-m2-ru0-deploy-f5cc01de-20261107-v1`，当前状态**仅 accepted，尚未收到最终执行结果**。
 - 本轮不得视 RU0 数据完成；待真实 `running=false` / DSH 报告后再验收。详细执行标准 [RU0_QUARANTINE_PATCH.md](RU0_QUARANTINE_PATCH.md)。
+
+
+## 十、2026-11-07 RU0 补丁部署及行情完整验收
+
+- DSH Web session：`session-codex-ai-engine-m0-session-20261107-v1`；部署 request_id：`ai-engine-m2-ru0-deploy-f5cc01de-20261107-v1`，DSH 返回最终成功报告且 `running=false`。
+- **运行提交**：`f5cc01de4608b18af11e03ca596583743588b2e7`，分支 `deploy/v0.2` ff-only，工作树干净；仅更新本项目 Engine 容器；`/healthz` 200，healthy，`127.0.0.1:8018`。
+- **真实期货数据**：`future_RU0_continuous.csv`，来自 `akshare.sina.futures_zh_daily_sina`；原始 2144 行、有效 2143 行，2018-01-02 至 2026-11-06；2023-08-28 单条原始源异常已隔离到 `future_RU0_continuous.quality.json`，`excluded_rows=1`，未造价、未禁用通用严格质量校验。质量 `valid=true`（针对**入库有效子集**），37 条警告含 1 条隔离和 36 条交易日历差距提示；**不可当作完全无缺口序列**。
+- **原有股票数据**：601118 前复权缓存仍 2031 条、截至 2026-11-05，大小和修改时间均保持，原有回测和研究文件仍在。DSH 未修改 Token、.env、OTW 数据或其它服务。
+- **修复记录**：PR #4 已合并，合并提交 `f5cc01de`，Issue #3 已关闭；DSH 连接验证 Issue #2 也已关闭。
+- **继续任务**：已通过 DSH MCP 派发 `ai-engine-m2-research-and-metrics-20261107-v1`，仅更新引擎本地研究快照并读取已存在的两份回测摘要；该任务当前仅 accepted，不可提前标记 done。

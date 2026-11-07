@@ -147,6 +147,7 @@ def build_research_snapshot(*, strategy_id: str, symbol: str, thesis_content: An
                              strategy_name: str | None = None, thesis_updated_at: str | None = None,
                              account_summary: dict[str, Any] | None = None,
                              market_quality: dict[str, Any] | None = None,
+                             provider_data_summary: dict[str, Any] | None = None,
                              as_of: datetime) -> dict[str, Any]:
     stock_bars = completed_daily_bars(stock_bars, as_of=as_of)
     futures_bars = completed_daily_bars(futures_bars, as_of=as_of)
@@ -165,6 +166,10 @@ def build_research_snapshot(*, strategy_id: str, symbol: str, thesis_content: An
             "excerpt": flatten_tiptap(thesis_content)[:1200],
         },
         "market_data_quality": market_quality or {},
+        "provider_data_summary": provider_data_summary or {
+            "observation_count": 0, "document_count": 0,
+            "assessment_note": "No locally synced fundamental/industry provider records.",
+        },
         "market_observations": {
             "equity": stock_summary,
             "commodity_reference": {

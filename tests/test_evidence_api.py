@@ -41,7 +41,7 @@ def test_disclosure_endpoint_is_authenticated_and_filters_as_of(monkeypatch, tmp
     store = EvidenceStore(tmp_path)
     store.save_documents([{
         "document_id": "cninfo:601118:1", "symbol": "601118", "title": "Q3 report",
-        "published_at": "2026-10-29T18:00:00+08:00", "source_name": "cninfo",
+        "published_at": "2026-10-29T18:00:00+08:00", "retrieved_at": "2026-10-30T00:00:00+08:00", "source_name": "cninfo",
         "source_url": "https://static.cninfo.com.cn/report.pdf",
     }])
     assert client.get("/v1/fundamentals/disclosures").status_code == 401

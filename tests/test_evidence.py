@@ -68,16 +68,16 @@ def test_store_upserts_and_reports_point_in_time_eligibility(tmp_path):
     assert saved["total_count"] == 1
     assert saved["storage_file"] == "evidence/industry_observations.json"
 
-    # Deterministic identity means a revised value replaces the same source/date record.
+    # A changed value without a source revision id is retained as a separate revision.
     revised = make_observation(value=118000)
-    assert revised.observation_id == first.observation_id
-    assert store.save_observations([revised])["total_count"] == 1
+    assert revised.observation_id != first.observation_id
+    assert store.save_observations([revised])["total_count"] == 2
 
     items = store.list_observations(as_of=AS_OF)
-    assert len(items) == 1
-    assert items[0]["value"] == 118000
-    assert items[0]["visible_as_of"] is True
-    assert items[0]["eligible_for_assessment"] is True
+    assert len(items) == 2
+    assert {item["value"] for item in items} == {120000, 118000}
+    assert all(item["visible_as_of"] is True for item in items)
+    assert all(item["eligible_for_assessment"] is True for item in items)
 
 
 def test_store_keeps_records_but_marks_unknown_publication_not_visible_as_of(tmp_path):

@@ -79,7 +79,7 @@ def main() -> None:
         saved = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).save_observations(observations)
         result = {
             **saved,
-            "series_id": "shfe_ru_delivery_warehouse_inventory_99qh",
+            "series_id": "99qh_natural_rubber_inventory_scope_unverified",
             "source": "akshare.99qh.futures_inventory_99",
             "row_count": len(observations),
             "first_effective_at": observations[0].effective_at if observations else None,

@@ -102,8 +102,13 @@ def test_documents_are_filtered_by_publication_time(tmp_path):
             "published_at": "2026-11-09T18:00:00+08:00", "retrieved_at": "2026-11-10T00:00:00+08:00", "source_name": "cninfo",
             "source_url": "https://static.cninfo.com.cn/future.pdf",
         },
+        {
+            "document_id": "cninfo:601118:3", "symbol": "601118", "title": "Late retrieved report",
+            "published_at": "2026-11-01T18:00:00+08:00", "retrieved_at": "2026-11-08T00:00:00+08:00", "source_name": "cninfo",
+            "source_url": "https://static.cninfo.com.cn/late-retrieved.pdf",
+        },
     ]
-    assert store.save_documents(docs)["total_count"] == 2
+    assert store.save_documents(docs)["total_count"] == 3
     visible = store.list_documents(symbol="601118", as_of=AS_OF)
     assert [item["document_id"] for item in visible] == ["cninfo:601118:1"]
 

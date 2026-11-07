@@ -241,11 +241,15 @@ class EvidenceStore:
     def summary(self, *, as_of: datetime) -> dict[str, Any]:
         observations = self.list_observations(as_of=as_of, limit=5000)
         documents = self.list_documents(as_of=as_of, limit=2000)
+        # Local import avoids a module cycle: financials reuses EvidenceError.
+        from .financials import FinancialFactStore
+        financial_summary = FinancialFactStore(self.root).summary(as_of=as_of)
         return {
             "observation_count": len(observations),
             "visible_observation_count": sum(bool(x.get("visible_as_of")) for x in observations),
             "eligible_observation_count": sum(bool(x.get("eligible_for_assessment")) for x in observations),
             "document_count": len(documents),
+            **financial_summary,
             "series_ids": sorted({str(x.get("series_id")) for x in observations}),
             "sources": sorted({str(x.get("source_name")) for x in observations + documents}),
             "assessment_note": "Provider records do not become thesis evidence until publication timing, effective date, source scope, units and human review are verified.",

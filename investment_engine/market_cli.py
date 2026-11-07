@@ -118,7 +118,7 @@ def main() -> None:
         print(f"Report: {target}")
         return
     else:
-                as_of = parse_time(args.as_of)
+        as_of = parse_time(args.as_of)
         if as_of is None or as_of > datetime.now().astimezone():
             parser.error("--as-of must be a valid non-future RFC3339 timestamp with timezone")
         client = OTWReadClient(

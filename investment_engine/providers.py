@@ -227,7 +227,9 @@ class AkShareRubberInventoryProvider:
             try:
                 day = date.fromisoformat(str(day_value)[:10])
                 inventory = float(inventory_value)
-                change = float(change_value) if change_value not in (None, "") else None
+                change = None if change_value in (None, "") else float(change_value)
+                if change is not None and math.isnan(change):
+                    change = None
             except (TypeError, ValueError) as exc:
                 raise ProviderError("99qh inventory row has an invalid date or value") from exc
             if not math.isfinite(inventory) or inventory < 0:

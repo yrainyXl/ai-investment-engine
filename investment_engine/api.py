@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
 from .evidence import EvidenceError, EvidenceStore
+from .financials import FinancialFactStore
 from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
@@ -158,6 +159,23 @@ def list_fundamental_disclosures(symbol: str = "601118", as_of: str | None = Non
         )
         return {"documents": items, "count": len(items),
                 "content_status": "metadata_only_pdf_not_parsed"}
+    except EvidenceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/v1/fundamentals/facts")
+def list_financial_facts(symbol: str = "601118", period: str | None = None,
+                         as_of: str | None = None, limit: int = 500,
+                         authorization: str | None = Header(default=None)):
+    """Read machine-extracted financial facts; all remain pending human review."""
+    _authorize(authorization)
+    try:
+        cutoff = _as_of(as_of) if as_of else None
+        items = FinancialFactStore(os.getenv("ENGINE_DATA_DIR", "data")).list(
+            symbol=symbol, period_label=period, as_of=cutoff, limit=limit,
+        )
+        return {"facts": items, "count": len(items),
+                "eligibility_note": "Machine-extracted values are not thesis evidence until a human verifies the statement scope, period, row mapping and units."}
     except EvidenceError as exc:
         raise HTTPException(422, str(exc)) from exc
 

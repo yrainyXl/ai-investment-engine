@@ -28,7 +28,7 @@
 | M1-OTW-001 | ChatGPT + DSH | P0 | done（按既有部署报告） | OTW paper-trading:r token | DSH 报告 v0.1 健康、策略发现、OTW context/document 时间匹配、无 runs/orders 写入 | 保持权限不变 |
 | M2-CODE-001 | ChatGPT | P0 | done（代码） | M1-OTW-001 | [PR #1](https://github.com/yrainyXl/ai-investment-engine/pull/1) 已 merged，merge SHA `bbff880d2b051ee03a0df35678c9027895be1eec`，PR CI 成功 | 用确定 SHA 给 DSH 部署 |
 | M2-DEPLOY-001 | DSH | P0 | done（已存量部署，非本次重部署） | M2-CODE-001 | DSH 在 2026-11-07 20:08 的现场只读报告：git HEAD=`bbff880d2b051ee03a0df35678c9027895be1eec`，分支 `deploy/v0.2`，镜像 `ai-investment-engine:0.2`，/healthz HTTP 200 version=0.2.0，127.0.0.1:8018，healthy | 无需再次部署；保持运行状态 |
-| M2-MARKET-001 | DSH（执行）/ ChatGPT（评估） | P0 | running | M2-DEPLOY-001 | DSH 已确认真实 601118 qfq 缓存 2031 条，末条 2026-11-05，RU0 独立缓存缺失。已通过 DSH Web session 派发 RU0 只写引擎 /data 的同步任务，request_id=`ai-engine-m2-ru0-sync-20261107-v1`，accepted=true | 等待 RU0 实际同步与 quality 结果 |
+| [M2-MARKET-001](https://github.com/yrainyXl/ai-investment-engine/issues/3) | DSH（执行）/ ChatGPT（评估） | P0 | running（修复部署） | M2-DEPLOY-001 | RU0 首次同步因 2023-08-28 单条 O/H/L/C 异常而失败；DSH 确认 2144 行仅此一条异常，未写入缓存。ChatGPT PR #4 CI 55 passed，已合并 SHA `f5cc01de4608b18af11e03ca596583743588b2e7`；DSH 已接受受控升级与重同步请求 `ai-engine-m2-ru0-deploy-f5cc01de-20261107-v1` | 等待 DSH 返回运行 SHA、RU0 入库行数和隔离审计 |
 | M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | partial | 601118 真实行情缓存 | DSH 已核实 /data/reports/601118-sma.json 与 601118-buy-hold.json 存在，结果为 completed 且 eligible_for_trading=false；尚未核对完整指标和数据日期 | 下轮读取脱敏指标，确认口径并完成验收 |
 | M3-PROVIDER-001 | ChatGPT | P1 | planned | M2 数据口径验收 | 无行业/财报独立 source provider | 实现公告、财报、天然橡胶现货与库存的可追溯读取 |
 | M3-THESIS-001 | ChatGPT | P1 | planned | M3-PROVIDER-001 | 四因素当前仍缺独立证据链 | 记录事实/预期/推断、反证、有效期与失效条件 |
@@ -105,3 +105,12 @@ DSH 实际状态：
 - **报告**：已存在本地 SMA、buy-and-hold 和研究快照；本轮未读取详细绩效指标。
 - **执行安全**：DSH 明确本轮只读，未修改配置、代码、服务、OTW 或权限；未打印 .env/token。
 - **进度重排**：M2-DEPLOY-001 从 blocked 改 done（服务器此前已部署，避免重复），M2-MARKET-001 改 running，M2-BACKTEST-001 改 partial。下一行动：DSH 已实际接受 `ai-engine-m2-ru0-sync-20261107-v1`，仅允许向引擎 /data 同步公开 RU0 数据，不允许重部署或 OTW 写操作。
+
+
+## 九、2026-11-07 RU0 异常排查、修复与再派发
+
+- DSH 初次 RU0 同步 request_id=`ai-engine-m2-ru0-sync-20261107-v1`，真实执行失败，`MarketDataError: row 1372 inconsistent OHLC relationship`，未存盘，其他数据未改。
+- DSH 按 `ai-engine-m2-ru0-inspect-20261107-v1` 只读检查 `futures_zh_daily_sina("RU0")`：2018 起筛选 2144 条，**仅 2023-08-28 一条错误**，`O=13270 H=13425 L=13225 C=13200`，原始 `settle=0`，并非同字段。其余 2143 条原始 OHLC 关系正常。
+- ChatGPT 建立 [Issue #3](https://github.com/yrainyXl/ai-investment-engine/issues/3) 和 [PR #4](https://github.com/yrainyXl/ai-investment-engine/pull/4)；采用精确匹配例外隔离异常、原始记录独立持久化，未改通用严格质量门；GitHub CI 55 passed；Squash merge SHA=`f5cc01de4608b18af11e03ca596583743588b2e7`。
+- DSH 已接受只升级 Investment Engine 并重新获取 RU0 的受控任务 request_id=`ai-engine-m2-ru0-deploy-f5cc01de-20261107-v1`，当前状态**仅 accepted，尚未收到最终执行结果**。
+- 本轮不得视 RU0 数据完成；待真实 `running=false` / DSH 报告后再验收。详细执行标准 [RU0_QUARANTINE_PATCH.md](RU0_QUARANTINE_PATCH.md)。

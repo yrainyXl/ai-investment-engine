@@ -175,6 +175,31 @@ DSH 返回结构至少应有：
 4. 实际调用 `get_task`/`get_result` 获取完成结果；验证状态从 pending/running 到 terminal，并记录证据。
 5. 再开放需要用户审批的部署任务；以固定 SHA、白名单动作和最小权限执行。
 
+## 6A. 真实 DSH MCP 工具映射（2026-11-07 已验证）
+
+本节优先于第 6 节的抽象接口名。DSH 插件 `dev-6aef12fa6a9c8191b86486034dd241ef` 已在当前 ChatGPT 对话实际暴露。可用工具如下：
+
+| 实际工具 | 用途 | 使用限制 |
+|---|---|---|
+| `mcp__dsh__list_dsh_sessions` | 枚举用户真实 DSH Web 项目会话 | 已成功调用 |
+| `mcp__dsh__create_dsh_session` | 在服务器真实项目目录创建 Web 会话 | 已在 `/opt/apps/ai-investment-engine` 调用 |
+| `mcp__dsh__send_dsh_message` | 将具体执行任务发给真实 Web Harness 会话 | 已实际调用，返回 `accepted=true`；不代表执行完成 |
+| `mcp__dsh__read_dsh_session` | 读取会话历史、`running`、最终消息和 `turn_ends` | 已实际调用，先读到 `running=true` |
+| `mcp__dsh__cancel_dsh_session` | 停止正在执行的当前 turn | 不撤销已经产生的变更 |
+| `mcp__dsh__submit_task` / `get_task_status` / `continue_task` | 孤立的旧任务执行器 | **不要用于此真实项目**，与用户 Web 项目会话分离 |
+| `mcp__dsh__deploy_task` / `get_deployment_status` | 独立 Node HTTP /preview 演示部署槽位 | **不适用于本项目现有 Docker Compose + FastAPI 服务** |
+
+**实际关联主键**：DSH Web 会话 `session_id` + 一次发送的 `request_id`（重试必须复用）；收到终态时关联会话中的完整 assistant 回复、`turn_ends` 和执行 SHA。它不是孤立 `submit_task` 返回的 `task_id`；台账中的 `DSH job/task ID` 可以记录为 `session_id/request_id`。
+
+目前已实际创建 Web 项目会话：
+- `session_id=session-codex-ai-engine-m0-session-20261107-v1`
+- `request_id=ai-engine-m0-readonly-dispatch-20261107-v1`
+- 工作目录 `/opt/apps/ai-investment-engine`
+- 初始派发 `accepted=true`，并独立回读 `running=true`
+- **第一条任务是只读现场探针；完成状态以 DSH 最终结果为准**。
+
+今后 ChatGPT 可在当前普通对话中通过上述 MCP 进行**真实项目任务派发与回读**，无需强制转到 Codex；工具可用范围仍取决于当前会话是否安装和授权对应插件。服务器端 ACL、审批和具体操作限制始终由 DSH 和用户约束。
+
 ## 7. 单任务闭环 SOP（失败也要留痕）
 
 1. **规划**：ChatGPT 在 [PROGRESS_LEDGER.md](PROGRESS_LEDGER.md) 创建 `TASK-ID`，写明范围、依赖、负责人、验收和风险。
@@ -202,8 +227,8 @@ DSH 返回结构至少应有：
 
 - GitHub 仓库 `yrainyXl/ai-investment-engine` 中 PR #1 已合并，合并 SHA `bbff880d2b051ee03a0df35678c9027895be1eec`，v0.2 已在代码主线；PR CI 记录显示通过，**不等于已在服务器部署 v0.2**。
 - DSH 先前报告 v0.1.1 运行健康，绑定 `127.0.0.1:8018`，OTW MCP 只读联调成功；当前服务器是否已升级 v0.2 尚无新返回。
-- 当前聊天可通过 GitHub 连接维护仓库。但**当前可见工具目录中没有 DSH 调度或查询函数**；个人插件目录只查到 OTW MCP。用户所述 DSH 已打通可能在其他会话、工作模式或尚未暴露给本会话，需实际工具调用确认，不得自行宣称任务已派发。
-- 下一优先任务：`M0-DSH-001` 探测 DSH 实际入口与只读状态返回；接着才是 `M2-DEPLOY-001` v0.2 服务器部署和真实数据联调。
+- 当前聊天可通过 GitHub 连接维护仓库。但**此前缺失，现已在 2026-11-07 当次插件唤醒后发现并实际调用 DSH Web Session 工具**；个人插件目录只查到 OTW MCP。用户所述 DSH 已打通可能在其他会话、工作模式或尚未暴露给本会话，已在本次 MCP 派发确认 `accepted=true`，但诊断完成/部署仍须独立验证。
+- 下一优先任务：`M0-DSH-002` 通过 `read_dsh_session` 验收只读任务结果；若服务器仍是 v0.1，待符合审批条件后派发 `M2-DEPLOY-001` v0.2 部署和真实数据联调。
 
 **版本判定原则：** GitHub merge、服务器运行 SHA、DSH 反馈 SHA、OTW 实时数据时间是四个不同事实，必须分别报告。
 

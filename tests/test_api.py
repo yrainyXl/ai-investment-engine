@@ -9,7 +9,7 @@ def test_healthz_is_read_only():
     response = client.get('/healthz')
     assert response.status_code == 200
     assert response.json()['orders_enabled'] is False
-    assert response.json()['version'] == '0.3.0'
+    assert response.json()['version'] == '0.4.0'
 
 
 def test_otw_http_preview_requires_engine_api_token(monkeypatch):

@@ -9,9 +9,9 @@
 
 | 里程碑 | 状态 | 已确认交付 | 剩余关键工作 |
 |---|---|---|---|
-| M0 施工治理与 DSH 调度通道 | partial | 施工总纲、任务台账、DSH 调度/回传目标契约入库 | 当前聊天 DSH 实际工具发现、只读探针、任务回读 |
+| M0 施工治理与 DSH 调度通道 | done（基础任务闭环） | 已从当前 ChatGPT 调用 DSH MCP 提交并读取终态；施工总纲和任务台账已入库 | 后续按具体任务复用 Web Session / request_id |
 | M1 v0.1 基础只读研究链 | done（按已收到的服务器验收报告） | DSH 报告 OTW MCP 只读、策略发现、健康检查、20 测试通过、无订单写入 | 不改变既有只读安全边界 |
-| M2 v0.2 行情与基础回测 | partial | GitHub PR #1 已合并；主线有 AKShare provider、缓存、回测、研究快照；PR CI 通过 | 服务器 v0.2 的实际部署 SHA、真实 601118/RU0 同步与报告未收到 |
+| M2 v0.2 行情与基础回测 | partial（已部署） | DSH 现场确认 v0.2 SHA=bbff880、容器 healthy，601118 真实缓存 2031 条、已有 SMA 和 buy-and-hold 报告 | RU0 独立行情缓存缺失，已派发补全任务 |
 | M3 基本面/行业证据 | planned | 已定义证据模型与四项假设门槛 | 真实库存、供给、现货、财报、预期数据源 |
 | M4 多策略与实验 | planned | 简单 SMA/持有基线 | 策略注册表、样本外回测、模拟组合隔离 |
 | M5 多 Agent 研究 | planned | 角色架构明确 | 实际模型适配、研究员/反方/风险 Agent |
@@ -23,13 +23,13 @@
 | Task ID | Owner | 优先级 | 状态 | 依赖 | 完成证据 / 阻断原因 | 下一动作 |
 |---|---|---|---|---|---|---|
 | M0-DOC-001 | ChatGPT | P0 | done | 无 | [施工总纲](CONSTRUCTION_PLAYBOOK.md) + 本台账已提交 main | 后续任务变化时维护 |
-| [M0-DSH-001](https://github.com/yrainyXl/ai-investment-engine/issues/2) | ChatGPT / DSH | P0 | done（连接与派发） | 当前聊天可用 DSH 工具 | 已实际通过 `mcp__dsh__list_dsh_sessions` 枚举 Web 会话，并由 `create_dsh_session` 建立项目会话；`send_dsh_message` 返回 `accepted=true` 和 request_id | 等待 DSH 返回只读现场诊断并验收 |
-| M0-DSH-002 | ChatGPT / DSH | P0 | running | M0-DSH-001 | 真实 DSH session `session-codex-ai-engine-m0-session-20261107-v1`；request_id `ai-engine-m0-readonly-dispatch-20261107-v1`；`read_dsh_session` 已验证 `running=true`，暂未看到最终回执 | 等待终态，读取并对账 |
+| [M0-DSH-001](https://github.com/yrainyXl/ai-investment-engine/issues/2) | ChatGPT / DSH | P0 | done | DSH Web MCP | 已实际列出会话、创建项目会话、send 返回 accepted=true、read 返回最终回复 | 后续复用同一会话及 request_id 模式 |
+| M0-DSH-002 | ChatGPT / DSH | P0 | done | M0-DSH-001 | DSH session `session-codex-ai-engine-m0-session-20261107-v1`、request_id `ai-engine-m0-readonly-dispatch-20261107-v1`；`read_dsh_session` 最终收到 M0-DSH-001/002 现场报告和 turn/end | 已验收真实任务派发与结果回读 |
 | M1-OTW-001 | ChatGPT + DSH | P0 | done（按既有部署报告） | OTW paper-trading:r token | DSH 报告 v0.1 健康、策略发现、OTW context/document 时间匹配、无 runs/orders 写入 | 保持权限不变 |
 | M2-CODE-001 | ChatGPT | P0 | done（代码） | M1-OTW-001 | [PR #1](https://github.com/yrainyXl/ai-investment-engine/pull/1) 已 merged，merge SHA `bbff880d2b051ee03a0df35678c9027895be1eec`，PR CI 成功 | 用确定 SHA 给 DSH 部署 |
-| M2-DEPLOY-001 | DSH | P0 | blocked | M0-DSH-001/002，用户对目标版本的批准 | **尚未通过当前通道派发**；未取得服务器 v0.2 运行 SHA | 审批后按 `docs/HARNESS_DEPLOY_TASK.md` 部署，并回传 job_id |
-| M2-MARKET-001 | DSH（执行）/ ChatGPT（评估） | P0 | planned | M2-DEPLOY-001 | 无可核实的 601118 与 RU0 真实行数据报告 | 同步行情，报告来源、数据日期、条数、异常/缺失 |
-| M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | planned | M2-MARKET-001 | 无服务器端 SMA 与 buy-hold 真实历史回测文件 | 产出两组回测、注明参数、复权、手续费和样本范围 |
+| M2-DEPLOY-001 | DSH | P0 | done（已存量部署，非本次重部署） | M2-CODE-001 | DSH 在 2026-11-07 20:08 的现场只读报告：git HEAD=`bbff880d2b051ee03a0df35678c9027895be1eec`，分支 `deploy/v0.2`，镜像 `ai-investment-engine:0.2`，/healthz HTTP 200 version=0.2.0，127.0.0.1:8018，healthy | 无需再次部署；保持运行状态 |
+| M2-MARKET-001 | DSH（执行）/ ChatGPT（评估） | P0 | running | M2-DEPLOY-001 | DSH 已确认真实 601118 qfq 缓存 2031 条，末条 2026-11-05，RU0 独立缓存缺失。已通过 DSH Web session 派发 RU0 只写引擎 /data 的同步任务，request_id=`ai-engine-m2-ru0-sync-20261107-v1`，accepted=true | 等待 RU0 实际同步与 quality 结果 |
+| M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | partial | 601118 真实行情缓存 | DSH 已核实 /data/reports/601118-sma.json 与 601118-buy-hold.json 存在，结果为 completed 且 eligible_for_trading=false；尚未核对完整指标和数据日期 | 下轮读取脱敏指标，确认口径并完成验收 |
 | M3-PROVIDER-001 | ChatGPT | P1 | planned | M2 数据口径验收 | 无行业/财报独立 source provider | 实现公告、财报、天然橡胶现货与库存的可追溯读取 |
 | M3-THESIS-001 | ChatGPT | P1 | planned | M3-PROVIDER-001 | 四因素当前仍缺独立证据链 | 记录事实/预期/推断、反证、有效期与失效条件 |
 | M4-REGISTRY-001 | ChatGPT | P1 | planned | M3-THESIS-001 | 未建研究算法与 OTW 账户分离注册表 | 多策略/多组合版本映射，默认 disabled |
@@ -45,8 +45,8 @@
 - 已发现且能用：GitHub 工具；OTW 工具在现有连接列表中。
 - 在当前会话可用的工具目录中按 `dsh / harness / deepseek / dispatch` 检索：**没有发现 DSH 任务提交、任务查询、结果读取函数**。
 - 检索当前用户自有的个人插件列表：仅看到 `otw-mcp`，没有看到 DSH 插件。此结论**不代表**用户其他会话、Work 或 Codex 环境没有连接 DSH。
-- DSH capability 实际调用：`not_attempted`（本会话没有可用工具）。
-- DSH `task_id`：`unknown`；`status`：`not_dispatched`；`result`：`not_received`。
+- DSH 能力实测（20:08）：`list_dsh_sessions`、`create_dsh_session`、`send_dsh_message`、`read_dsh_session` 已实际调用；Web session `session-codex-ai-engine-m0-session-20261107-v1`，只读任务 request_id=`ai-engine-m0-readonly-dispatch-20261107-v1`，`accepted=true`、`running` 变为 `false`、有最终 assistant 报告和 turn/end。
+- 初次只读诊断结果：v0.2 已部署，`bbff880d`，容器 healthy；601118 qfq 2031 条日线、RU0 独立缓存尚无，已有 SMA 与持有回测报告。
 - 服务端是否已有自定义调度网关、MCP 接口或审批回调：`unknown`；不能从公网 Harness 网页可访问推断其支持外部任务提交。
 
 **更新（2026-11-07 20:08 北京时间）：已经实际验证 ChatGPT → DSH Web Session 的建立与消息派发，`accepted=true`；并通过 `read_dsh_session` 确认 `running=true`。当前会话依然尚未取得 DSH 的最终诊断结果，不能标记部署或只读诊断完成。** [Issue #2](https://github.com/yrainyXl/ai-investment-engine/issues/2) 跟踪回读验收。
@@ -95,3 +95,13 @@ DSH 实际状态：
 - 消息幂等键：`ai-engine-m0-readonly-dispatch-20261107-v1`；工具实际返回 `accepted=true`，且 read API 返回 `running=true`。
 - 范围：仅只读查看版本、git SHA、容器健康、行情与回测文件元数据；**未授权本轮部署**。
 - 当前 `DSH final result`：尚未收到；部署进度保持原状态，等待结果再更新。
+
+
+## 八、2026-11-07 20:08 DSH 首轮真实回传与任务调整
+
+- **回传途径**：`mcp__dsh__read_dsh_session`，session=`session-codex-ai-engine-m0-session-20261107-v1`，实际观察到 `running=false`、`turn_ends=1` 和 DSH 最终报告。
+- **服务器确认**：目录 `/opt/apps/ai-investment-engine`；部署分支 `deploy/v0.2`；实际 SHA `bbff880d2b051ee03a0df35678c9027895be1eec`，与 PR #1 merge 一致；容器 `ai-investment-engine:0.2`、healthy，`/healthz` 200，`127.0.0.1:8018` 仅回环。
+- **市场数据**：601118 qfq 真实缓存 2031 条，截止 2026-11-05，AKShare Eastmoney；RU0 只有研究报告符号引用，无独立行情缓存。
+- **报告**：已存在本地 SMA、buy-and-hold 和研究快照；本轮未读取详细绩效指标。
+- **执行安全**：DSH 明确本轮只读，未修改配置、代码、服务、OTW 或权限；未打印 .env/token。
+- **进度重排**：M2-DEPLOY-001 从 blocked 改 done（服务器此前已部署，避免重复），M2-MARKET-001 改 running，M2-BACKTEST-001 改 partial。下一行动：DSH 已实际接受 `ai-engine-m2-ru0-sync-20261107-v1`，仅允许向引擎 /data 同步公开 RU0 数据，不允许重部署或 OTW 写操作。

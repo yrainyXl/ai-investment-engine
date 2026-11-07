@@ -11,7 +11,7 @@
 |---|---|---|---|
 | M0 施工治理与 DSH 调度通道 | done（基础任务闭环） | 已从当前 ChatGPT 调用 DSH MCP 提交并读取终态；施工总纲和任务台账已入库 | 后续按具体任务复用 Web Session / request_id |
 | M1 v0.1 基础只读研究链 | done（按已收到的服务器验收报告） | DSH 报告 OTW MCP 只读、策略发现、健康检查、20 测试通过、无订单写入 | 不改变既有只读安全边界 |
-| M2 v0.2 行情与基础回测 | partial（行情已验收） | DSH 已部署补丁 SHA f5cc01de，601118 2031 条 + RU0 2143 条有效日线，1 条历史来源异常已隔离审计，容器 healthy | 研究快照刷新和回测绩效详情待确认 |
+| M2 v0.2 行情与基础回测 | done（研究基线） | DSH 已部署 SHA f5cc01de，601118 2031 条、RU0 2143 条、1 条异常隔离；SMA/持有回测与 RU0 研究快照已有真实结果，容器 healthy | 基本面四因子仍缺证据，进入 M3 |
 | M3 基本面/行业证据 | planned | 已定义证据模型与四项假设门槛 | 真实库存、供给、现货、财报、预期数据源 |
 | M4 多策略与实验 | planned | 简单 SMA/持有基线 | 策略注册表、样本外回测、模拟组合隔离 |
 | M5 多 Agent 研究 | planned | 角色架构明确 | 实际模型适配、研究员/反方/风险 Agent |
@@ -29,8 +29,8 @@
 | M2-CODE-001 | ChatGPT | P0 | done（代码） | M1-OTW-001 | [PR #1](https://github.com/yrainyXl/ai-investment-engine/pull/1) 已 merged，merge SHA `bbff880d2b051ee03a0df35678c9027895be1eec`，PR CI 成功 | 用确定 SHA 给 DSH 部署 |
 | M2-DEPLOY-001 | DSH | P0 | done（已存量部署，非本次重部署） | M2-CODE-001 | DSH 在 2026-11-07 20:08 的现场只读报告：git HEAD=`bbff880d2b051ee03a0df35678c9027895be1eec`，分支 `deploy/v0.2`，镜像 `ai-investment-engine:0.2`，/healthz HTTP 200 version=0.2.0，127.0.0.1:8018，healthy | 无需再次部署；保持运行状态 |
 | [M2-MARKET-001](https://github.com/yrainyXl/ai-investment-engine/issues/3) | DSH（执行）/ ChatGPT（评估） | P0 | done（行情接入） | M2-DEPLOY-001 | DSH 实际部署 SHA `f5cc01de4608b18af11e03ca596583743588b2e7`，健康 200；RU0 连续 2144 原始、2143 有效、1 条 2023-08-28 异常隔离，quality.valid=true，研究数据范围 2018-01-02→2026-11-06；601118 2031 条未变；缓存 sidecar 已实物验收 | M2-RESEARCH-001 刷新研究快照并核对绩效摘要 |
-| M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | running（绩效复核） | 601118 真实行情缓存 | 两种回测报告均存在且 completed；已发 DSH 只读指标读取任务 request_id=`ai-engine-m2-research-and-metrics-20261107-v1` | 等待实际指标与研究快照回传 |
-| M3-PROVIDER-001 | ChatGPT | P1 | planned | M2 数据口径验收 | 无行业/财报独立 source provider | 实现公告、财报、天然橡胶现货与库存的可追溯读取 |
+| M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | done（基线回测） | 601118 真实行情缓存 | DSH 返回 SMA：total_return=-67.4917%、最大回撤=-71.9848%、Sharpe=-0.4587；买入持有：total_return=-5.5948%、最大回撤=-44.5378%；区间 2018-01-02~2026-11-05，2031 条 qfq，均 eligible_for_trading=false | 进入样本外、成本口径和交易规则补强（M4） |
+| M3-PROVIDER-001 | ChatGPT | P1 | ready_to_start | M2 数据口径验收 | DSH 确认基础行情与回测已通过；研究快照中的四项基本面因子全部 missing | 先拆出财报/公告、库存、现货价的独立 provider，建立日期/来源与口径 |
 | M3-THESIS-001 | ChatGPT | P1 | planned | M3-PROVIDER-001 | 四因素当前仍缺独立证据链 | 记录事实/预期/推断、反证、有效期与失效条件 |
 | M4-REGISTRY-001 | ChatGPT | P1 | planned | M3-THESIS-001 | 未建研究算法与 OTW 账户分离注册表 | 多策略/多组合版本映射，默认 disabled |
 | M4-EXPERIMENT-001 | ChatGPT | P1 | planned | M2-BACKTEST-001、M4-REGISTRY-001 | 回测仍是基础技术指标基线 | 样本外、区间对照、成本敏感性、基准与结果复现 |
@@ -124,3 +124,14 @@ DSH 实际状态：
 - **原有股票数据**：601118 前复权缓存仍 2031 条、截至 2026-11-05，大小和修改时间均保持，原有回测和研究文件仍在。DSH 未修改 Token、.env、OTW 数据或其它服务。
 - **修复记录**：PR #4 已合并，合并提交 `f5cc01de`，Issue #3 已关闭；DSH 连接验证 Issue #2 也已关闭。
 - **继续任务**：已通过 DSH MCP 派发 `ai-engine-m2-research-and-metrics-20261107-v1`，仅更新引擎本地研究快照并读取已存在的两份回测摘要；该任务当前仅 accepted，不可提前标记 done。
+
+
+## 十一、2026-11-07 真实研究快照与回测结果回填
+
+- DSH 会话：`session-codex-ai-engine-m0-session-20261107-v1`，请求 `ai-engine-m2-research-and-metrics-20261107-v1`，已收到实际完成报告；只更新 Engine `/data/reports/hainan-rubber-research.json`，未写 OTW。
+- **RU0 研究快照**：`commodity_reference.status=available`，`bar_count=2143`，`last_bar=2026-11-06`，来源 AKShare Sina；`excluded_count=1`；`thesis.updated_at=2026-11-03T13:50:31.593693Z`。
+- **基本面证据**：`hypothesis_assessment.overall=insufficient_evidence`，四项缺口是 `actual_supply_change`、`multiweek_inventory_trend`、`profit_pass_through`、`priced_market_expectations`。这确认下一步必须做行业、财报和预期的独立真实数据源，而不是继续堆叠技术指标。
+- **SMA 20/60 基线（2018-01-02~2026-11-05，601118 前复权，2031 行）**：累计收益 `-67.4917%`，年化收益 `-13.0199%`，Sharpe `-0.4587`，最大回撤 `-71.9848%`，持仓占比 `25.57%`，换手单位 `132.0`。
+- **买入并持有对照（同区间、同源）**：累计收益 `-5.5948%`，年化收益 `-0.7122%`，Sharpe `0.1807`，最大回撤 `-44.5378%`，仓位暴露 `100%`。
+- 参数：单边手续费 `10 bps`、滑点 `5 bps` 为 DSH 据施工命令/CLI 默认值确认，**未在此次报告内逐字段从 JSON 直接读取**；研究使用供应商前复权数据、下一交易日开盘价模拟成交，忽略部分中国市场实际限制，不能认为是真实可交易策略或投资建议。两份回测报告仍保持 `eligible_for_trading=false`，原文件未被重写。
+- **阶段判定**：M2 v0.2 基础行情/研究/回测可标 done（研究基线）；M3 基本面证据仍缺失，`M3-PROVIDER-001` 转入 ready_to_start。维持纸面订单冻结与 OTW MCP 只读权限。

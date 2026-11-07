@@ -73,7 +73,7 @@ def test_cninfo_provider_rejects_invalid_symbol_and_page_bounds():
         provider.fetch(symbol="601118", max_pages=0)
 
 
-def test_akshare_inventory_is_labeled_as_delivery_warehouse_proxy(monkeypatch):
+def test_akshare_inventory_is_labeled_with_unknown_statistical_scope(monkeypatch):
     class Frame:
         def to_dict(self, orient):
             assert orient == "records"

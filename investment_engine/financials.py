@@ -186,6 +186,8 @@ def parse_quarterly_report_pages(
     if summary_start < 0 or summary_end < 0:
         raise FinancialParseError("main financial data summary section not found")
     summary = combined[summary_start:summary_end]
+    if not re.search(r"单位[:：]元", summary):
+        raise FinancialParseError("summary table does not explicitly declare yuan units")
 
     facts: list[FinancialFact] = []
 
@@ -234,6 +236,8 @@ def parse_quarterly_report_pages(
     if income_start < 0 or income_end < 0:
         raise FinancialParseError("consolidated income statement section not found")
     income = combined[income_start:income_end]
+    if not re.search(r"单位[:：]元", income):
+        raise FinancialParseError("consolidated income statement does not explicitly declare yuan units")
     income_rows = [
         ("revenue", "营业收入"),
         ("cost_of_revenue", "营业成本"),
@@ -254,6 +258,8 @@ def parse_quarterly_report_pages(
     if cash_start < 0 or cash_end < 0:
         raise FinancialParseError("consolidated cash flow statement section not found")
     cash = combined[cash_start:cash_end]
+    if not re.search(r"单位[:：]元", cash):
+        raise FinancialParseError("consolidated cash flow statement does not explicitly declare yuan units")
     offset, values = _values_after(cash, "经营活动产生的现金流量净额", limit=2)
     add("operating_cash_flow", values[0], period_type="year_to_date",
         section="consolidated_cash_flow_statement",
@@ -291,6 +297,10 @@ class CNInfoFinancialReportProvider:
         })
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
+                final_url = response.geturl() if hasattr(response, "geturl") else source_url
+                final_host = urlparse(final_url).hostname
+                if final_host not in ALLOWED_PDF_HOSTS:
+                    raise FinancialParseError("CNINFO PDF redirected outside the official static host")
                 pdf_bytes = response.read(self.max_bytes + 1)
         except Exception as exc:
             raise FinancialParseError(f"CNINFO PDF download failed: {type(exc).__name__}") from exc

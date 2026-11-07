@@ -78,8 +78,8 @@ def test_akshare_inventory_is_labeled_as_delivery_warehouse_proxy(monkeypatch):
         def to_dict(self, orient):
             assert orient == "records"
             return [
-                {"日期": "2026-11-05", "库存": 146940, "增减": float("nan")},
-                {"日期": "2026-11-06", "库存": 146680, "增减": -260},
+                {"日期": "2026-11-05", "库存": 146940, "收盘价": 15500},
+                {"日期": "2026-11-06", "库存": 146680, "收盘价": 15460},
             ]
 
     calls = []
@@ -90,15 +90,17 @@ def test_akshare_inventory_is_labeled_as_delivery_warehouse_proxy(monkeypatch):
     observations = AkShareRubberInventoryProvider().fetch(
         as_of=datetime(2026, 11, 7, 0, 0, tzinfo=timezone.utc)
     )
-    assert calls == [{"exchange": "上海期货交易所", "symbol": "天然橡胶"}]
+    assert calls == [{"symbol": "天然橡胶"}]
     assert len(observations) == 2
     latest = observations[-1]
     assert latest.value == 146680
+    assert latest.metadata["scope_status"] == "unverified"
+    assert latest.metadata["price_column_present"] is True
     assert observations[0].metadata["change"] is None
     assert latest.unit == "source_native_unverified"
     assert latest.published_at is None
     assert latest.unit_verified is False
-    assert "not China's total social inventory" in latest.series_definition
+    assert "unknown statistical scope" in latest.series_definition
     assert latest.eligibility(
         as_of=datetime(2026, 11, 7, 12, 0, tzinfo=timezone.utc)
     )["eligible_for_assessment"] is False

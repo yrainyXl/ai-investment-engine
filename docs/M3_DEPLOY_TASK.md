@@ -43,7 +43,10 @@ Run the following once each. These write only local metadata files in `/data/evi
 docker compose exec -T engine python -m investment_engine.market_cli sync-disclosures \
   --symbol 601118 --start-date 2020-01-01 --end-date "$(date +%F)" --max-pages 5
 
-docker compose exec -T engine python -m investment_engine.market_cli sync-industry\n\n# Parse the already-indexed 2026 Q3 report once\ndocker compose exec -T engine python -m investment_engine.market_cli sync-financials --symbol 601118 --period 2026-Q3
+docker compose exec -T engine python -m investment_engine.market_cli sync-industry
+
+# Parse the already-indexed 2026 Q3 report once
+docker compose exec -T engine python -m investment_engine.market_cli sync-financials --symbol 601118 --period 2026-Q3
 ```
 
 Do not retry a failed provider call without ChatGPT review. A source failure must not create synthetic rows.
@@ -65,4 +68,4 @@ Do not output any secret, account/holding details, complete report contents or r
 
 ## Failure handling
 
-If build, health, source sync or validation fails, stop at the first failing step for that provider, retain old /data, and report the sanitized error. Do not downgrade, reset or edit code. ChatGPT will prepare a new PR if code changes are required.
+If build or health fails, stop the deployment. If one independent public-source sync fails, record its sanitized error and continue only with the other explicitly listed independent sync once; retain old data and do not retry either provider. Do not downgrade, reset or edit code. ChatGPT will prepare a new PR if code changes are required.

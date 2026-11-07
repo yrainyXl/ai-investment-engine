@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from .analysis import parse_time
 from .backtest import run_backtest
 from .evidence import EvidenceStore
+from .financials import CNInfoFinancialReportProvider, FinancialFactStore, FinancialParseError
 from .providers import AkShareRubberInventoryProvider, CNInfoDisclosureProvider, ProviderError
 from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient
@@ -61,8 +62,15 @@ def main() -> None:
     disclosures.add_argument("--end-date", default=datetime.now(SH).date().isoformat())
     disclosures.add_argument("--max-pages", type=int, default=5)
 
+    financials = sub.add_parser("sync-financials", help="Download and parse one CNINFO quarterly report PDF")
+    financials.add_argument("--symbol", default="601118")
+    financials.add_argument("--period", required=True, help="Quarter such as 2026-Q3")
+    financials.add_argument("--document-id", default="", help="Optional exact CNINFO document id")
+    financials.add_argument("--as-of", default=datetime.now(SH).isoformat())
+
     args = parser.parse_args()
-    store = MarketDataStore(os.getenv("ENGINE_DATA_DIR", "data"))
+    data_root = os.getenv("ENGINE_DATA_DIR", "data")
+    store = MarketDataStore(data_root)
 
     if args.command == "sync":
         result = MarketDataService(store=store).sync(
@@ -100,6 +108,36 @@ def main() -> None:
             "first_published_at": documents[0]["published_at"] if documents else None,
             "last_published_at": documents[-1]["published_at"] if documents else None,
             "content_status": "metadata_only_pdf_not_parsed",
+        }
+    elif args.command == "sync-financials":
+        as_of = parse_time(args.as_of)
+        period_match = __import__("re").fullmatch(r"(20\\d{2})-Q([1-4])", args.period)
+        if as_of is None or as_of.tzinfo is None or as_of > datetime.now().astimezone():
+            parser.error("--as-of must be a valid non-future RFC3339 timestamp with timezone")
+        if not period_match:
+            parser.error("--period must use YYYY-Q1 through YYYY-Q4")
+        year, quarter = period_match.groups()
+        quarter_name = {"1": "一", "2": "二", "3": "三", "4": "四"}[quarter]
+        period_title = f"{year}年{quarter_name}季度报告"
+        documents = EvidenceStore(data_root).list_documents(symbol=args.symbol, as_of=as_of, limit=2000)
+        if args.document_id:
+            matches = [item for item in documents if item.get("document_id") == args.document_id]
+        else:
+            matches = [item for item in documents if period_title in str(item.get("title") or "")]
+        if len(matches) != 1:
+            parser.error(f"expected exactly one CNINFO document for {args.period}; found {len(matches)}. Sync disclosures or pass --document-id.")
+        facts = CNInfoFinancialReportProvider().fetch_and_parse(matches[0])
+        saved = FinancialFactStore(data_root).save(facts)
+        result = {
+            **saved, "symbol": args.symbol, "period": args.period,
+            "document_id": matches[0]["document_id"], "title": matches[0]["title"],
+            "source": "cninfo.official_disclosure_pdf",
+            "fact_count": len(facts),
+            "metrics": sorted({item.metric for item in facts}),
+            "source_pages": sorted({item.source_page for item in facts}),
+            "audit_status": sorted({item.audit_status for item in facts}),
+            "extraction_status": "machine_extracted_pending_human_review",
+            "eligible_for_assessment": False,
         }
     elif args.command == "backtest":
         adjustment = "continuous" if args.asset_type == "future" else args.adjustment

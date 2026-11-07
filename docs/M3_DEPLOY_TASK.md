@@ -1,11 +1,11 @@
-# DSH deployment task: AI Investment Engine v0.3.0 / M3 Provider v1
+# DSH deployment task: AI Investment Engine v0.4.0 / M3 Provider v1
 
 Target repository: `yrainyXl/ai-investment-engine`
 Target directory: `/opt/apps/ai-investment-engine`
 Target branch: `deploy/v0.2`
-Target image: `ai-investment-engine:0.3`
-Target API version: `0.3.0`
-Target SHA: **ChatGPT must supply the exact merged SHA after PR #6 is merged. Do not infer it from this document.**
+Target image: `ai-investment-engine:0.4`
+Target API version: `0.4.0`
+Target SHA: **ChatGPT must supply the exact merged SHA after the M3 v0.4 PR is merged. Do not infer it from this document.**
 
 ## Allowed actions
 
@@ -33,7 +33,7 @@ Target SHA: **ChatGPT must supply the exact merged SHA after PR #6 is merged. Do
 3. `git fetch origin`; verify the exact ChatGPT-supplied SHA is an ancestor of `origin/main`.
 4. Use `git merge --ff-only <EXACT_TARGET_SHA>` from `deploy/v0.2`. Do not reset or rebase.
 5. Run `docker compose config --quiet`, then `docker compose up -d --build engine`. This rebuilds only the project engine container. Preserve the existing `./data:/data` volume.
-6. Confirm the image is `ai-investment-engine:0.3`, container healthy, `/healthz` returns HTTP 200 with `version=0.3.0`, and port remains bound only to `127.0.0.1:8018`. Confirm `read_only`, `cap_drop: ALL`, and `no-new-privileges` remain enabled.
+6. Confirm the image is `ai-investment-engine:0.4`, container healthy, `/healthz` returns HTTP 200 with `version=0.4.0`, and port remains bound only to `127.0.0.1:8018`. Confirm `read_only`, `cap_drop: ALL`, and `no-new-privileges` remain enabled.
 
 ## Public data sync
 
@@ -43,7 +43,7 @@ Run the following once each. These write only local metadata files in `/data/evi
 docker compose exec -T engine python -m investment_engine.market_cli sync-disclosures \
   --symbol 601118 --start-date 2020-01-01 --end-date "$(date +%F)" --max-pages 5
 
-docker compose exec -T engine python -m investment_engine.market_cli sync-industry
+docker compose exec -T engine python -m investment_engine.market_cli sync-industry\n\n# Parse the already-indexed 2026 Q3 report once\ndocker compose exec -T engine python -m investment_engine.market_cli sync-financials --symbol 601118 --period 2026-Q3
 ```
 
 Do not retry a failed provider call without ChatGPT review. A source failure must not create synthetic rows.

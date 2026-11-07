@@ -68,6 +68,7 @@ def main() -> None:
             fee_bps=args.fee_bps, slippage_bps=args.slippage_bps, as_of=as_of.date(),
         )
         result["as_of"] = as_of.isoformat()
+        result["market_data_quality"] = store.read_quarantine(args.symbol, args.asset_type, adjustment)
         target = Path(args.out)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -111,6 +112,10 @@ def main() -> None:
             futures_bars=futures_bars, evidence=evidence,
             strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
             account_summary=account_summary, as_of=as_of,
+            market_quality={
+                "equity": store.read_quarantine(symbol, "stock", "qfq"),
+                "commodity_reference": store.read_quarantine(args.futures_symbol, "future", "continuous"),
+            },
         )
     if args.command in ("sync", "research"):
         out_path = getattr(args, "out", None)

@@ -150,3 +150,72 @@ def test_akshare_futures_adapter_uses_continuous_contract_and_date_filter():
     assert bars[0].adjustment == "continuous"
     assert bars[0].exchange == "SHFE"
     assert bars[0].volume_unit == "contracts"
+
+
+def test_known_ru0_upstream_ohlc_outlier_is_quarantined_exactly():
+    class FakeAK:
+        def futures_zh_daily_sina(self, **kwargs):
+            assert kwargs["symbol"] == "RU0"
+            return FakeFrame([
+                {"date": "2023-08-25", "open": 13205, "high": 13340,
+                 "low": 13190, "close": 13270, "volume": 194862, "settle": 0},
+                {"date": "2023-08-28", "open": 13270, "high": 13425,
+                 "low": 13225, "close": 13200, "volume": 269600, "settle": 0},
+                {"date": "2023-08-29", "open": 13205, "high": 13270,
+                 "low": 13120, "close": 13180, "volume": 179572, "settle": 0},
+            ])
+    provider = AKShareProvider.__new__(AKShareProvider)
+    provider.ak = FakeAK()
+    bars = provider.fetch(
+        symbol="RU0", asset_type="future", start_date="20230801",
+        end_date="20230830", adjustment="continuous"
+    )
+    assert [x.timestamp for x in bars] == ["2023-08-25", "2023-08-29"]
+    assert len(provider.quarantine_records) == 1
+    row = provider.quarantine_records[0]
+    assert row["date"] == "2023-08-28"
+    assert row["close"] == 13200
+    assert row["settle"] == 0
+    assert "issues/3" in row["review"]
+
+
+def test_unknown_ohlc_outlier_still_rejected():
+    class FakeAK:
+        def futures_zh_daily_sina(self, **kwargs):
+            return FakeFrame([
+                {"date": "2023-08-28", "open": 13270, "high": 13425,
+                 "low": 13225, "close": 13199, "volume": 269600, "settle": 0},
+            ])
+    provider = AKShareProvider.__new__(AKShareProvider)
+    provider.ak = FakeAK()
+    with pytest.raises(MarketDataError, match="inconsistent OHLC"):
+        provider.fetch(symbol="RU0", asset_type="future",
+                       start_date="20230801", end_date="20230830",
+                       adjustment="continuous")
+
+
+def test_quarantine_sidecar_retains_raw_exclusion_and_series_flag(tmp_path):
+    class FakeAK:
+        def futures_zh_daily_sina(self, **kwargs):
+            return FakeFrame([
+                {"date": "2023-08-25", "open": 13205, "high": 13340,
+                 "low": 13190, "close": 13270, "volume": 194862, "settle": 0},
+                {"date": "2023-08-28", "open": 13270, "high": 13425,
+                 "low": 13225, "close": 13200, "volume": 269600, "settle": 0},
+                {"date": "2023-08-29", "open": 13205, "high": 13270,
+                 "low": 13120, "close": 13180, "volume": 179572, "settle": 0},
+            ])
+    provider = AKShareProvider.__new__(AKShareProvider)
+    provider.ak = FakeAK()
+    store = MarketDataStore(tmp_path)
+    result = MarketDataService(store=store, provider=provider).sync(
+        symbol="RU0", asset_type="future", start_date="20230801",
+        end_date="20230830", adjustment="continuous",
+    )
+    assert result["source_record_status"] == "partial_quarantined"
+    assert result["quarantined_count"] == 1
+    assert result["quality"]["valid"] is True
+    assert result["quality"]["warning_count"] > 0
+    assert store.read_quarantine("RU0", "future", "continuous")["excluded_rows"][0]["date"] == "2023-08-28"
+    assert store.list_series()[0]["excluded_rows"] == 1
+    assert len(store.load("RU0", "future", "continuous")) == 2

@@ -386,5 +386,6 @@ class MarketDataService:
             "last_bar": all_bars[-1].timestamp if all_bars else None,
             "quality": quality, "storage_file": path.name,
             "source_record_status": "partial_quarantined" if quarantine_records else "complete",
+            "source_rows_in_window": len(bars) + len(quarantine_records),
             "quarantined_count": len(quarantine_records), "quarantine_file": quarantine_file,
         }

@@ -206,13 +206,15 @@ class EvidenceStore:
         existing = self._read(self.documents_path)
         merged = {str(item.get("document_id")): item for item in existing}
         for item in documents:
-            required = ("document_id", "symbol", "title", "published_at", "source_name", "source_url")
+            required = ("document_id", "symbol", "title", "published_at", "retrieved_at", "source_name", "source_url")
             if any(not item.get(key) for key in required):
                 raise EvidenceError("source document is missing required provenance")
             if not str(item["source_url"]).startswith("https://"):
                 raise EvidenceError("document source_url must use HTTPS")
             if _parse_aware(str(item["published_at"])) is None:
                 raise EvidenceError("document published_at must include a timezone")
+            if _parse_aware(str(item["retrieved_at"])) is None:
+                raise EvidenceError("document retrieved_at must include a timezone")
             merged[str(item["document_id"])] = dict(item)
         ordered = sorted(merged.values(), key=lambda x: (x.get("published_at") or "", x.get("document_id") or ""))
         self._write(self.documents_path, ordered)
@@ -228,7 +230,10 @@ class EvidenceStore:
             if symbol and item.get("symbol") != symbol:
                 continue
             published = _parse_aware(item.get("published_at"))
-            if as_of is not None and (published is None or published > as_of):
+            retrieved = _parse_aware(item.get("retrieved_at"))
+            if as_of is not None and (
+                published is None or retrieved is None or published > as_of or retrieved > as_of
+            ):
                 continue
             output.append(item)
         return output[-limit:]

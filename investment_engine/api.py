@@ -12,13 +12,14 @@ from pydantic import BaseModel, Field
 
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
+from .evidence import EvidenceError, EvidenceStore
 from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
 from .research import build_research_snapshot
 from .report_store import ReportStore
 
-app = FastAPI(title="AI Investment Engine", version="0.2.0")
+app = FastAPI(title="AI Investment Engine", version="0.3.0")
 
 
 class PreviewRequest(BaseModel):
@@ -90,7 +91,7 @@ def _as_of(value: str | None) -> datetime:
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.2.0"}
+    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.3.0"}
 
 
 @app.get("/v1/strategies")
@@ -126,6 +127,39 @@ def preview(req: PreviewRequest, authorization: str | None = Header(default=None
         raise HTTPException(422, "OTW preview failed: OTWError") from exc
     except (ValueError, OSError) as exc:
         raise HTTPException(422, f"Preview failed: {type(exc).__name__}") from exc
+
+
+@app.get("/v1/industry/observations")
+def list_industry_observations(series_id: str | None = None, as_of: str | None = None,
+                               limit: int = 500,
+                               authorization: str | None = Header(default=None)):
+    """Read locally synced industry observations with point-in-time eligibility metadata."""
+    _authorize(authorization)
+    try:
+        cutoff = _as_of(as_of) if as_of else None
+        items = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).list_observations(
+            as_of=cutoff, series_id=series_id, limit=limit,
+        )
+        return {"observations": items, "count": len(items)}
+    except EvidenceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/v1/fundamentals/disclosures")
+def list_fundamental_disclosures(symbol: str = "601118", as_of: str | None = None,
+                                 limit: int = 200,
+                                 authorization: str | None = Header(default=None)):
+    """Read CNINFO disclosure index metadata; this endpoint does not parse PDF facts."""
+    _authorize(authorization)
+    try:
+        cutoff = _as_of(as_of) if as_of else None
+        items = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).list_documents(
+            symbol=symbol, as_of=cutoff, limit=limit,
+        )
+        return {"documents": items, "count": len(items),
+                "content_status": "metadata_only_pdf_not_parsed"}
+    except EvidenceError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/v1/market-data")
@@ -228,7 +262,7 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
             stock_bars=stock_bars, futures_symbol=req.futures_symbol,
             futures_bars=futures_bars, evidence=req.evidence,
             strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
-            account_summary=account_summary, as_of=as_of,
+            account_summary=account_summary, provider_data_summary=EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).summary(as_of=as_of), as_of=as_of,
             market_quality={
                 "equity": _store().read_quarantine(symbol, "stock", "qfq"),
                 "commodity_reference": _store().read_quarantine(req.futures_symbol, "future", "continuous")

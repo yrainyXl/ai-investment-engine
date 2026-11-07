@@ -1,4 +1,4 @@
-# AI Investment Engine v0.2
+# AI Investment Engine v0.3
 
 OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：读取 OTW 真实账户上下文，通过 AKShare 获取公开日线数据，建立可追溯的数据缓存，评估投资假设并运行透明的基准回测。不会写入 OTW runs/orders/documents，也不会连接券商或下真实订单。
 
@@ -146,6 +146,8 @@ assessment 只能由人审阅后标为 supporting 或 contradicting。证据发�
 
 - GET /v1/strategies：动态读取 OTW 策略列表。
 - POST /v1/analysis/preview：现有只读分析预览。
+- GET /v1/industry/observations：读取本地行业观察记录及 point-in-time 资格状态。
+- GET /v1/fundamentals/disclosures：读取 CNINFO 公告元数据（不解析 PDF）。
 - GET /v1/market-data：列出本地数据序列。
 - POST /v1/market-data/sync：获取并缓存指定 symbol 的日线数据。
 - GET /v1/market-data/{symbol}：读取本地缓存。

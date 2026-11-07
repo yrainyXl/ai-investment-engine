@@ -78,7 +78,7 @@ def test_akshare_inventory_is_labeled_as_delivery_warehouse_proxy(monkeypatch):
         def to_dict(self, orient):
             assert orient == "records"
             return [
-                {"日期": "2026-11-05", "库存": 146940, "增减": -350},
+                {"日期": "2026-11-05", "库存": 146940, "增减": float("nan")},
                 {"日期": "2026-11-06", "库存": 146680, "增减": -260},
             ]
 
@@ -94,6 +94,7 @@ def test_akshare_inventory_is_labeled_as_delivery_warehouse_proxy(monkeypatch):
     assert len(observations) == 2
     latest = observations[-1]
     assert latest.value == 146680
+    assert observations[0].metadata["change"] is None
     assert latest.unit == "source_native_unverified"
     assert latest.published_at is None
     assert latest.unit_verified is False

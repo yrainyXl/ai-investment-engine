@@ -30,7 +30,7 @@
 | M2-DEPLOY-001 | DSH | P0 | done（已存量部署，非本次重部署） | M2-CODE-001 | DSH 在 2026-11-07 20:08 的现场只读报告：git HEAD=`bbff880d2b051ee03a0df35678c9027895be1eec`，分支 `deploy/v0.2`，镜像 `ai-investment-engine:0.2`，/healthz HTTP 200 version=0.2.0，127.0.0.1:8018，healthy | 无需再次部署；保持运行状态 |
 | [M2-MARKET-001](https://github.com/yrainyXl/ai-investment-engine/issues/3) | DSH（执行）/ ChatGPT（评估） | P0 | done（行情接入） | M2-DEPLOY-001 | DSH 实际部署 SHA `f5cc01de4608b18af11e03ca596583743588b2e7`，健康 200；RU0 连续 2144 原始、2143 有效、1 条 2023-08-28 异常隔离，quality.valid=true，研究数据范围 2018-01-02→2026-11-06；601118 2031 条未变；缓存 sidecar 已实物验收 | M2-RESEARCH-001 刷新研究快照并核对绩效摘要 |
 | M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | done（基线回测） | 601118 真实行情缓存 | DSH 返回 SMA：total_return=-67.4917%、最大回撤=-71.9848%、Sharpe=-0.4587；买入持有：total_return=-5.5948%、最大回撤=-44.5378%；区间 2018-01-02~2026-11-05，2031 条 qfq，均 eligible_for_trading=false | 进入样本外、成本口径和交易规则补强（M4） |
-| [M3-PROVIDER-001](https://github.com/yrainyXl/ai-investment-engine/issues/5) | ChatGPT | P1 | ready_to_start | M2 数据口径验收 | DSH 确认基础行情与回测已通过；研究快照中的四项基本面因子全部 missing | 先拆出财报/公告、库存、现货价的独立 provider，建立日期/来源与口径 |
+| [M3-PROVIDER-001](https://github.com/yrainyXl/ai-investment-engine/issues/5) | ChatGPT | P1 | in_progress | M2 数据口径验收 | 开发分支 `feat/m3-evidence-providers-v1`：新增 point-in-time Observation/EvidenceStore、CNINFO 公告索引元数据 Provider、99qh/AKShare 上期所天然橡胶交割仓库库存 Provider、只读 API/CLI、测试与来源边界文档；尚未 CI/PR/服务器实测 | CI 验证后合并并让 DSH 只读同步真实公告/库存；再开发 PDF 财务事实抽取、青岛/全国社会库存和现货价格 |
 | M3-THESIS-001 | ChatGPT | P1 | planned | M3-PROVIDER-001 | 四因素当前仍缺独立证据链 | 记录事实/预期/推断、反证、有效期与失效条件 |
 | M4-REGISTRY-001 | ChatGPT | P1 | planned | M3-THESIS-001 | 未建研究算法与 OTW 账户分离注册表 | 多策略/多组合版本映射，默认 disabled |
 | M4-EXPERIMENT-001 | ChatGPT | P1 | planned | M2-BACKTEST-001、M4-REGISTRY-001 | 回测仍是基础技术指标基线 | 样本外、区间对照、成本敏感性、基准与结果复现 |
@@ -137,3 +137,13 @@ DSH 实际状态：
 - **阶段判定**：M2 v0.2 基础行情/研究/回测可标 done（研究基线）；M3 基本面证据仍缺失，`M3-PROVIDER-001` 转入 ready_to_start。维持纸面订单冻结与 OTW MCP 只读权限。
 
 - **下一研发工单**：[Issue #5：M3-PROVIDER-001](https://github.com/yrainyXl/ai-investment-engine/issues/5)，由 ChatGPT 开发；DSH 不自行修改业务代码或启动新的任务。
+
+
+## 十二、2026-11-07 M3 Provider v1 开发中
+
+- 关联 [Issue #5](https://github.com/yrainyXl/ai-investment-engine/issues/5)，当前开发分支 `feat/m3-evidence-providers-v1`，尚未建立 PR / CI 验收 / 部署。
+- 新增 `Observation` 标准记录：factor、metric/value/unit、series definition、effective/published/retrieved 时间、来源 URL、revision、evidence type、人工审核和单位核验状态。只有时间、来源、单位/口径、人工审核全部通过才具备进入研究证据门的资格；inference 不可作为事实/预期。
+- CNINFO Provider 当前只索引 601118 官方公告元数据（标题、公告时间、原文 URL），明确不解析 PDF、不把标题当财务事实。
+- 库存 Provider 首先接入 AKShare/99qh 上期所天然橡胶交割仓库库存序列；它不是青岛/全国社会库存，且现接口未提供已验证单位和独立发布时间，故记录为 `source_native_unverified`、`published_at=null`，不能填充多周库存证据门。
+- 新增本地存储 `/data/evidence`、认证只读 API 和两个 CLI 同步入口；未增加 OTW 写接口、交易或定时任务。
+- 详见 [M3_PROVIDER_DESIGN.md](M3_PROVIDER_DESIGN.md)。下一步：CI 验证；通过后由 DSH 在现有 Engine 中只读联调，结果必须如实保留 unknown / unavailable。

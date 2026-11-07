@@ -9,6 +9,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .backtest import run_backtest
+from .evidence import EvidenceStore
+from .providers import AkShareRubberInventoryProvider, CNInfoDisclosureProvider, ProviderError
 from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient
 from .research import build_research_snapshot
@@ -49,6 +51,15 @@ def main() -> None:
     research.add_argument("--as-of", default=datetime.now(SH).isoformat())
     research.add_argument("--out", default="output/research.json")
 
+    industry = sub.add_parser("sync-industry", help="Sync SHFE rubber delivery-warehouse inventory observations")
+    industry.add_argument("--as-of", default=datetime.now(SH).isoformat())
+
+    disclosures = sub.add_parser("sync-disclosures", help="Index official CNINFO disclosures; PDFs are not parsed")
+    disclosures.add_argument("--symbol", default="601118")
+    disclosures.add_argument("--start-date", default="2020-01-01")
+    disclosures.add_argument("--end-date", default=datetime.now(SH).date().isoformat())
+    disclosures.add_argument("--max-pages", type=int, default=5)
+
     args = parser.parse_args()
     store = MarketDataStore(os.getenv("ENGINE_DATA_DIR", "data"))
 
@@ -59,6 +70,36 @@ def main() -> None:
         )
     elif args.command == "list":
         result = {"series": store.list_series()}
+    elif args.command == "sync-industry":
+        as_of = parse_time(args.as_of) if "parse_time" in globals() else datetime.fromisoformat(args.as_of)
+        if as_of is None or as_of.tzinfo is None:
+            parser.error("--as-of must be RFC3339 with timezone")
+        observations = AkShareRubberInventoryProvider().fetch(as_of=as_of)
+        saved = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).save_observations(observations)
+        result = {
+            **saved,
+            "series_id": "shfe_ru_delivery_warehouse_inventory_99qh",
+            "source": "akshare.99qh.futures_inventory_99",
+            "row_count": len(observations),
+            "first_effective_at": observations[0].effective_at if observations else None,
+            "last_effective_at": observations[-1].effective_at if observations else None,
+            "unit_status": "unverified",
+            "publication_timestamp_status": "unavailable_from_source_schema",
+            "assessment_status": "not_eligible_pending_human_review_and_scope_verification",
+        }
+    elif args.command == "sync-disclosures":
+        documents = CNInfoDisclosureProvider().fetch(
+            symbol=args.symbol, start_date=args.start_date, end_date=args.end_date,
+            max_pages=args.max_pages,
+        )
+        saved = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).save_documents(documents)
+        result = {
+            **saved, "symbol": args.symbol, "source": "cninfo.official_disclosure_index",
+            "row_count": len(documents),
+            "first_published_at": documents[0]["published_at"] if documents else None,
+            "last_published_at": documents[-1]["published_at"] if documents else None,
+            "content_status": "metadata_only_pdf_not_parsed",
+        }
     elif args.command == "backtest":
         adjustment = "continuous" if args.asset_type == "future" else args.adjustment
         as_of = datetime.now(SH)

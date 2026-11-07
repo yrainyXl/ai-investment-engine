@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
+from decimal import Decimal, InvalidOperation
 import re
 from calendar import monthrange
 from dataclasses import asdict, dataclass
@@ -36,16 +36,16 @@ def _compact(value: str) -> str:
     return re.sub(r"\s+", "", str(value or "")).replace("−", "-")
 
 
-def _parse_number(token: str) -> float | None:
+def _parse_number(token: str) -> str | None:
     if token == "不适用":
         return None
     try:
-        value = float(token.replace(",", "").replace("−", "-"))
-    except (TypeError, ValueError) as exc:
+        value = Decimal(token.replace(",", "").replace("−", "-"))
+    except (TypeError, InvalidOperation) as exc:
         raise FinancialParseError("invalid numeric token in report") from exc
-    if not math.isfinite(value):
+    if not value.is_finite():
         raise FinancialParseError("non-finite numeric token in report")
-    return value
+    return format(value, "f")
 
 
 def _period_from_title(title: str) -> tuple[int, int]:
@@ -62,7 +62,7 @@ def _page_for_offset(offset: int, ranges: list[tuple[int, int, int]]) -> int | N
     return None
 
 
-def _values_after(text: str, label: str, *, limit: int = 4) -> tuple[int, list[float | None]]:
+def _values_after(text: str, label: str, *, limit: int = 4) -> tuple[int, list[str | None]]:
     position = text.find(label)
     if position < 0:
         raise FinancialParseError(f"required report row not found: {label}")
@@ -79,8 +79,10 @@ class FinancialFact:
     symbol: str
     issuer_name: str
     metric: str
-    value: float
+    value: str
     unit: str
+    value_scale: str
+    unit_basis: str
     currency: str
     period_type: str
     period_label: str
@@ -107,7 +109,7 @@ class FinancialFact:
 
     def validate(self) -> None:
         required = (
-            self.fact_id, self.symbol, self.metric, self.unit, self.currency,
+            self.fact_id, self.symbol, self.metric, self.unit, self.value_scale, self.unit_basis, self.currency,
             self.period_label, self.period_start, self.period_end,
             self.source_document_id, self.source_title, self.source_name,
             self.source_url, self.source_section, self.source_label,
@@ -120,7 +122,11 @@ class FinancialFact:
             raise EvidenceError("unsupported financial statement scope")
         if self.evidence_type != "confirmed_fact":
             raise EvidenceError("parsed financial statements must be confirmed_fact records")
-        if not math.isfinite(float(self.value)):
+        try:
+            numeric_value = Decimal(self.value)
+        except (InvalidOperation, TypeError) as exc:
+            raise EvidenceError("financial fact value must be a decimal string") from exc
+        if not numeric_value.is_finite():
             raise EvidenceError("financial fact value must be finite")
         if not self.source_url.startswith("https://"):
             raise EvidenceError("financial fact source_url must use HTTPS")
@@ -183,12 +189,10 @@ def parse_quarterly_report_pages(
 
     facts: list[FinancialFact] = []
 
-    def add(metric: str, value: float | None, *, period_type: str, section: str,
+    def add(metric: str, value: str | None, *, period_type: str, section: str,
             label: str, offset: int, page_text: str, scope: str = "consolidated") -> None:
         if value is None:
             return
-        if not math.isfinite(value):
-            raise FinancialParseError(f"non-finite value for {metric}")
         start_date, end_date = (
             (quarter_start, quarter_end) if period_type == "quarter"
             else (ytd_start, quarter_end)
@@ -197,7 +201,7 @@ def parse_quarterly_report_pages(
         fact_id = hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
         fact = FinancialFact(
             fact_id=fact_id, symbol=symbol, issuer_name=issuer, metric=metric,
-            value=value, unit="CNY", currency="CNY", period_type=period_type,
+            value=value, unit="CNY", value_scale="yuan", unit_basis="report table states 元 / 人民币", currency="CNY", period_type=period_type,
             period_label=period_label, period_start=start_date, period_end=end_date,
             statement_scope=scope, source_document_id=document_id,
             source_title=title, source_name=source_name, source_url=source_url,

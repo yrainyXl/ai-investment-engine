@@ -178,3 +178,10 @@ DSH 实际状态：
 - PR #7 修复 AKShare `futures_inventory_99(symbol='天然橡胶')` 真实签名及证据范围错误，CI 已通过；squash merge SHA `73a20c6587c78790d2dd0551dee9182f469f8703`。
 - 新序列为 `99qh_natural_rubber_inventory_scope_unverified`；由于原始 API 无可靠单位、独立发布日期、库存统计范围，入库记录不得算作已确认的上期所、青岛或全国社会库存，不能填补基本面因子门。
 - ChatGPT 实际通过 DSH MCP 派发只更新 Engine 的小版本及一次库存同步，session=`session-codex-ai-engine-m0-session-20261107-v1`，request_id=`ai-engine-m3-inventory-hotfix-73a20c65-20261107-v1`，send 返回 `accepted=true`；**尚未读取终态，任务仍在 DSH 执行队列**。
+
+
+## 十七、2026-11-07 M3 库存 Hotfix 部署受阻
+
+- DSH 已完成 `ai-engine-m3-inventory-hotfix-73a20c65-20261107-v1` 任务并回传终态：预检通过，当前服务器仍是 PR #6 的 SHA `15b636084a5da9f6320ccf5eb2017c5b9a02c551`、`ai-investment-engine:0.3`、healthz 200/version 0.3.0、仅绑定 127.0.0.1:8018。
+- 未部署 PR #7，原因是服务器 `git fetch origin` 对 GitHub HTTPS SSL timeout，curl 12 秒 0 bytes、git ls-remote 25 秒超时；目标 SHA `73a20c6587c78790d2dd0551dee9182f469f8703` 在服务器本地不可达。DSH 没有 merge、没有重建、没有执行 `sync-industry`，也没有修改工作树/容器/数据。
+- 因此库存 Provider 代码修复已合并 main 但尚未进入服务器；当前仍无库存观察记录。下一步需先解决服务器到 GitHub 的受控代码同步问题，再继续部署。不得把 PR merge 或任务 accepted 说成服务器已更新。

@@ -146,6 +146,7 @@ def build_research_snapshot(*, strategy_id: str, symbol: str, thesis_content: An
                              futures_bars: Sequence[Bar] = (), evidence: dict[str, Any] | None = None,
                              strategy_name: str | None = None, thesis_updated_at: str | None = None,
                              account_summary: dict[str, Any] | None = None,
+                             market_quality: dict[str, Any] | None = None,
                              as_of: datetime) -> dict[str, Any]:
     stock_bars = completed_daily_bars(stock_bars, as_of=as_of)
     futures_bars = completed_daily_bars(futures_bars, as_of=as_of)
@@ -163,6 +164,7 @@ def build_research_snapshot(*, strategy_id: str, symbol: str, thesis_content: An
             "updated_at": thesis_updated_at,
             "excerpt": flatten_tiptap(thesis_content)[:1200],
         },
+        "market_data_quality": market_quality or {},
         "market_observations": {
             "equity": stock_summary,
             "commodity_reference": {
@@ -179,6 +181,7 @@ def build_research_snapshot(*, strategy_id: str, symbol: str, thesis_content: An
                 "This phase supplies market observations and evidence bookkeeping, not an LLM-generated investment conclusion.",
                 "Fundamental supply, inventory, company earnings and priced expectations require their own dated source records.",
                 "No order or OTW write operation is available in this service.",
+                "Review market_data_quality for upstream quarantined rows before comparing daily sequences.",
             ],
         },
     }

@@ -80,7 +80,7 @@ class Observation:
         effective = _iso(effective_at)
         published = _iso(published_at)
         retrieved = _iso(retrieved_at)
-        key = "|".join((source_name, series_id, metric, effective or "", revision_id or ""))
+        key = "|".join((source_name, series_id, metric, effective or "", revision_id or repr(float(value))))
         observation_id = hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
         item = cls(
             observation_id=observation_id, series_id=series_id, subject=subject,

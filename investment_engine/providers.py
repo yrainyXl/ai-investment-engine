@@ -1,8 +1,8 @@
 """Public-source adapters for company disclosures and rubber inventory proxies.
 
 The CNINFO adapter indexes disclosure metadata only; it does not pretend to
-extract audited financial facts from PDF text. The 99qh adapter is explicitly
-limited to SHFE delivery-warehouse inventory, not national/social inventory.
+extract audited financial facts from PDF text. The 99qh inventory adapter has
+unverified statistical scope and cannot be labeled exchange or social stock.
 """
 from __future__ import annotations
 

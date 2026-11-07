@@ -69,15 +69,15 @@ def test_parser_extracts_quarter_and_ytd_facts_with_period_and_scope():
     facts = parsed_facts()
     by_key = {(item.metric, item.period_type): item for item in facts}
 
-    assert by_key[("revenue", "quarter")].value == 8_639_374_848.21
+    assert by_key[("revenue", "quarter")].value == "8639374848.21"
     assert by_key[("revenue", "quarter")].period_start == "2026-07-01"
     assert by_key[("revenue", "quarter")].period_end == "2026-09-30"
-    assert by_key[("revenue", "year_to_date")].value == 23_762_244_302.46
-    assert by_key[("cost_of_revenue", "year_to_date")].value == 22_974_588_686.99
-    assert by_key[("net_profit_attributable", "quarter")].value == -81_184_834.30
-    assert by_key[("net_profit_attributable", "year_to_date")].value == -211_664_225.55
-    assert by_key[("net_profit_attributable_ex_nonrecurring", "year_to_date")].value == -392_953_177.71
-    assert by_key[("operating_cash_flow", "year_to_date")].value == 1_349_976_384.61
+    assert by_key[("revenue", "year_to_date")].value == "23762244302.46"
+    assert by_key[("cost_of_revenue", "year_to_date")].value == "22974588686.99"
+    assert by_key[("net_profit_attributable", "quarter")].value == "-81184834.30"
+    assert by_key[("net_profit_attributable", "year_to_date")].value == "-211664225.55"
+    assert by_key[("net_profit_attributable_ex_nonrecurring", "year_to_date")].value == "-392953177.71"
+    assert by_key[("operating_cash_flow", "year_to_date")].value == "1349976384.61"
     assert by_key[("cost_of_revenue", "year_to_date")].statement_scope == "consolidated"
     assert by_key[("cost_of_revenue", "year_to_date")].source_page == 2
     assert by_key[("cost_of_revenue", "year_to_date")].audit_status == "unaudited"

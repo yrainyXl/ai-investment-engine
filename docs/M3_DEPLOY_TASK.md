@@ -2,7 +2,7 @@
 
 Target repository: `yrainyXl/ai-investment-engine`
 Target directory: `/opt/apps/ai-investment-engine`
-Target branch: `deploy/v0.3`
+Target branch: `deploy/v0.2`
 Target image: `ai-investment-engine:0.3`
 Target API version: `0.3.0`
 Target SHA: **ChatGPT must supply the exact merged SHA after PR #6 is merged. Do not infer it from this document.**
@@ -41,7 +41,7 @@ Run the following once each. These write only local metadata files in `/data/evi
 
 ```bash
 docker compose exec -T engine python -m investment_engine.market_cli sync-disclosures \
-  --symbol 601118 --start-date 2020-01-01 --end-date <TODAY_YYYY_MM_DD> --max-pages 5
+  --symbol 601118 --start-date 2020-01-01 --end-date "$(date +%F)" --max-pages 5
 
 docker compose exec -T engine python -m investment_engine.market_cli sync-industry
 ```

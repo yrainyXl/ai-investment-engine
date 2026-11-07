@@ -1,8 +1,8 @@
 """Public-source adapters for company disclosures and rubber inventory proxies.
 
 The CNINFO adapter indexes disclosure metadata only; it does not pretend to
-extract audited financial facts from PDF text. The 99qh adapter is explicitly
-limited to SHFE delivery-warehouse inventory, not national/social inventory.
+extract audited financial facts from PDF text. The 99qh inventory adapter has
+unverified statistical scope and cannot be labeled exchange or social stock.
 """
 from __future__ import annotations
 
@@ -195,12 +195,11 @@ class CNInfoDisclosureProvider:
 
 
 class AkShareRubberInventoryProvider:
-    """Fetch the 99qh/AKShare SHFE delivery-warehouse inventory series.
+    """Fetch the 99qh natural-rubber inventory with unverified statistical scope.
 
-    This is not Qingdao bonded/general-trade inventory or China's total social
-    inventory. The current interface schema does not document a measurement
-    unit or a separate publication timestamp, so those fields remain unknown
-    and observations are deliberately ineligible for thesis assessment.
+    AKShare returns date, closing price and inventory with no documented inventory
+    unit, statistical scope or separate publication timestamp. Therefore the
+    observations remain ineligible for thesis assessment.
     """
 
     def fetch(self, *, as_of: datetime | None = None) -> list[Observation]:
@@ -209,7 +208,7 @@ class AkShareRubberInventoryProvider:
         except ImportError as exc:
             raise ProviderError("AKShare is not installed") from exc
         try:
-            frame = ak.futures_inventory_99(exchange="上海期货交易所", symbol="天然橡胶")
+            frame = ak.futures_inventory_99(symbol="天然橡胶")
             rows = frame.to_dict(orient="records")
         except Exception as exc:
             raise ProviderError(f"99qh inventory source failed: {type(exc).__name__}") from exc
@@ -243,10 +242,10 @@ class AkShareRubberInventoryProvider:
                 raise ProviderError(f"99qh returned duplicate inventory date: {day.isoformat()}")
             seen.add(effective_at)
             output.append(Observation.create(
-                series_id="shfe_ru_delivery_warehouse_inventory_99qh",
-                subject="SHFE natural rubber delivery warehouses",
+                series_id="99qh_natural_rubber_inventory_scope_unverified",
+                subject="99qh natural rubber inventory (scope unverified)",
                 factor="multiweek_inventory_trend",
-                metric="delivery_warehouse_inventory",
+                metric="inventory_scope_unverified",
                 value=inventory,
                 unit="source_native_unverified",
                 effective_at=effective_at,
@@ -259,12 +258,12 @@ class AkShareRubberInventoryProvider:
                 reviewed_by_human=False,
                 unit_verified=False,
                 series_definition=(
-                    "99qh/AKShare Shanghai Futures Exchange natural-rubber delivery-warehouse inventory; "
-                    "not Qingdao bonded/general-trade stock and not China's total social inventory. "
+                    "99qh/AKShare natural-rubber inventory with unknown statistical scope; "
+                    "must not be equated to SHFE delivery or Qingdao/national social inventory. "
                     "Unit and publication timestamp are not documented by the current adapter schema."
                 ),
-                detail="Source-reported inventory value; do not compare with other inventory series until unit and scope are verified.",
-                metadata={"change": change, "frequency": "source_reported"},
+                detail="Source-reported inventory value with unverified scope and unit; cannot be used as market supply evidence.",
+                metadata={"change": change, "frequency": "source_reported", "scope_status": "unverified", "price_column_present": "收盘价" in row},
             ))
         output.sort(key=lambda item: item.effective_at)
         return output

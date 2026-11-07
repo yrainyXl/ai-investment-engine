@@ -39,13 +39,13 @@
 python -m investment_engine.market_cli sync-disclosures --symbol 601118 --start-date 2020-01-01 --end-date 2026-11-07 --max-pages 5
 ```
 
-### 天然橡胶交割仓库库存代理序列
+### 天然橡胶库存（统计范围尚未核实）
 
 实现：`AkShareRubberInventoryProvider`
 
-- AKShare：`futures_inventory_99(exchange="上海期货交易所", symbol="天然橡胶")`
+- AKShare：`futures_inventory_99(symbol="天然橡胶")`
 - 来源站点： https://www.99qh.com/data/stockIn
-- 该序列定义为**上期所天然橡胶交割仓库库存口径**，不是青岛保税/一般贸易库存，也不是中国天然橡胶社会总库存。
+- 该接口实际返回 `日期`、`收盘价`、`库存`，**未声明库存统计范围**，不能将其称为上期所交割仓库库存，也不能作为青岛/全国社会库存。
 - 当前 AKShare 返回字段未提供可验证的单位和独立发布日期，所以 unit 标记 `source_native_unverified`、`published_at=null`、`unit_verified=false`。它可作为原始观察留存，但不会自动填充 `multiweek_inventory_trend` 证据门。
 - 后续要补上期所官方仓单日报的单位/原始发布日期核验，并单独接入隆众/卓创等青岛与全国社会库存；不得将不同库存口径相加或拼成一条连续序列。
 

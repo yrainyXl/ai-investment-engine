@@ -55,8 +55,8 @@ Read local `/data/evidence/source_documents.json` and `/data/evidence/industry_o
 Report:
 - actual Git SHA, branch, image tag, health and local bind;
 - CNINFO rows saved, first/last published_at, source name, whether source URLs are HTTPS, and confirm `content_status=metadata_only_pdf_not_parsed`;
-- inventory rows saved, first/last effective date, series_id and source;
-- explicitly confirm unit is `source_native_unverified`, `published_at=null`, `unit_verified=false`, so this series is not eligible for thesis assessment and is not social inventory;
+- inventory rows saved, first/last effective date, series_id and source; confirm its statistical scope is **unknown**;
+- explicitly confirm unit is `source_native_unverified`, `published_at=null`, `unit_verified=false`, so this series is not eligible for thesis assessment, and it is not verified as exchange delivery or social inventory;
 - original 601118/RU0 market CSV counts and report files remain present;
 - confirm OTW state was not read/written by this task, no orders and no schedules were touched.
 

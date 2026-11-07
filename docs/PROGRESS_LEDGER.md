@@ -164,3 +164,10 @@ DSH 实际状态：
 - CNINFO 公告索引已写入 600 条，首/末 2022-11-25→2026-10-29，来源与链接均 HTTPS，`metadata_only_pdf_not_parsed`。请求自 2020 年起，但目前 `max_pages=20` 可能导致历史不全；不视为完整公告库，更不能视为已抽取财报数字。
 - AKShare/99qh 库存 Provider 调用失败，`TypeError: futures_inventory_99() got an unexpected keyword argument 'exchange'`，未生成库存文件、未产生任何库存记录；本项不标 done。ChatGPT 已通过 DSH 下发只读签名检查 `ai-engine-m3-inventory-signature-readonly-20261107-v1`，仅用于定位真实接口参数，不授权擅自修改代码。
 - 原有 601118 2031 条、RU0 2143 条及研究/回测文件未改；DSH 未读/写 OTW、订单或调度。
+
+
+## 十五、2026-11-07 M3 库存 Provider 现场诊断与补丁
+
+- DSH request_id=`ai-engine-m3-inventory-signature-readonly-20261107-v1` 实际只读检查 AKShare 1.20.35，`futures_inventory_99(symbol='豆一')`，**没有 `exchange` 参数**；只读调用 `symbol='天然橡胶'` 成功，返回 1181 行，列 `日期`、`收盘价`、`库存`。
+- 上游文档仅称“大宗商品库存数据”，未定义统计范围、计量单位、独立发布日期，故原代码描述“上期所交割仓库库存”缺乏证据。补丁改为 **99qh 天然橡胶库存（统计范围未核实）**；不进入 thesis 因子门，保留 `source_native_unverified`/`published_at=null`/`unit_verified=false`。
+- ChatGPT 修复分支 `fix/m3-99qh-signature-and-scope`，待 CI 验证、合并并让 DSH 定点更新。不可宣称 M3 库存已有数据完成。

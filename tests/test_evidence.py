@@ -94,12 +94,12 @@ def test_documents_are_filtered_by_publication_time(tmp_path):
     docs = [
         {
             "document_id": "cninfo:601118:1", "symbol": "601118", "title": "2026 Q3 report",
-            "published_at": "2026-10-29T18:00:00+08:00", "source_name": "cninfo",
+            "published_at": "2026-10-29T18:00:00+08:00", "retrieved_at": "2026-10-30T00:00:00+08:00", "source_name": "cninfo",
             "source_url": "https://static.cninfo.com.cn/report.pdf",
         },
         {
             "document_id": "cninfo:601118:2", "symbol": "601118", "title": "Future report",
-            "published_at": "2026-11-09T18:00:00+08:00", "source_name": "cninfo",
+            "published_at": "2026-11-09T18:00:00+08:00", "retrieved_at": "2026-11-10T00:00:00+08:00", "source_name": "cninfo",
             "source_url": "https://static.cninfo.com.cn/future.pdf",
         },
     ]
@@ -113,6 +113,6 @@ def test_documents_reject_non_https_sources(tmp_path):
     with pytest.raises(EvidenceError, match="HTTPS"):
         store.save_documents([{
             "document_id": "x", "symbol": "601118", "title": "report",
-            "published_at": "2026-10-29T18:00:00+08:00", "source_name": "cninfo",
+            "published_at": "2026-10-29T18:00:00+08:00", "retrieved_at": "2026-10-30T00:00:00+08:00", "source_name": "cninfo",
             "source_url": "http://example.com/report.pdf",
         }])

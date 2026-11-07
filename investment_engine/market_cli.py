@@ -68,6 +68,7 @@ def main() -> None:
             fee_bps=args.fee_bps, slippage_bps=args.slippage_bps, as_of=as_of.date(),
         )
         result["as_of"] = as_of.isoformat()
+        result["market_data_quality"] = store.read_quarantine(args.symbol, args.asset_type, adjustment)
         target = Path(args.out)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

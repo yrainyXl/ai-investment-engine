@@ -146,7 +146,9 @@ assessment 只能由人审阅后标为 supporting 或 contradicting。证据发�
 
 - GET /v1/strategies：动态读取 OTW 策略列表。
 - POST /v1/analysis/preview：现有只读分析预览。
-- GET /v1/industry/observations：读取本地行业观察记录及 point-in-time 资格状态。\n- GET /v1/fundamentals/disclosures：读取 CNINFO 公告元数据（不解析 PDF）。\n- GET /v1/market-data：列出本地数据序列。
+- GET /v1/industry/observations：读取本地行业观察记录及 point-in-time 资格状态。
+- GET /v1/fundamentals/disclosures：读取 CNINFO 公告元数据（不解析 PDF）。
+- GET /v1/market-data：列出本地数据序列。
 - POST /v1/market-data/sync：获取并缓存指定 symbol 的日线数据。
 - GET /v1/market-data/{symbol}：读取本地缓存。
 - POST /v1/backtests/run：运行 SMA/买入持有回测。

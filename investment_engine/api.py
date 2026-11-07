@@ -20,7 +20,7 @@ from .pipeline import run_pipeline
 from .research import build_research_snapshot
 from .report_store import ReportStore
 
-app = FastAPI(title="AI Investment Engine", version="0.3.0")
+app = FastAPI(title="AI Investment Engine", version="0.4.0")
 
 
 class PreviewRequest(BaseModel):
@@ -92,7 +92,7 @@ def _as_of(value: str | None) -> datetime:
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.3.0"}
+    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.4.0"}
 
 
 @app.get("/v1/strategies")

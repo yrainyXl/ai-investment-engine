@@ -29,7 +29,7 @@ OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：
 ~~~bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[api,market-data,test]'
+python -m pip install -e '.[api,market-data,fundamentals,test]'
 python -m pytest -q
 ~~~
 
@@ -140,6 +140,16 @@ assessment 只能由人审阅后标为 supporting 或 contradicting。证据发�
 
 对海南橡胶，OHLCV 和 RU0 只能提供价格与趋势观察，不能证明实际供给变化、库存变化、公司利润传导或市场已计价预期。上述基本面证据缺失时，研究结果会保持 unknown / insufficient_evidence。
 
+## M3 财报结构化提取
+
+同步 CNINFO 公告元数据后，提取指定季度报告：
+
+~~~bash
+python -m investment_engine.market_cli sync-financials --symbol 601118 --period 2026-Q3
+~~~
+
+提取结果保存在 `/data/evidence/financial_facts.json`。每条记录保留精确十进制值、报告期间、合并报表口径、发布日期、抓取时间、来源 PDF 和页码。所有结果均标记为 `machine_extracted_pending_human_review`，不会自动进入投资逻辑。详见 [M3 财报提取设计](docs/M3_FINANCIAL_FACTS.md)。
+
 ## HTTP API
 
 需要先配置 ENGINE_API_TOKEN。所有接口均受 Bearer Token 保护（/healthz 除外）。
@@ -195,6 +205,6 @@ curl --fail http://127.0.0.1:8018/healthz
 - 只读 OTW：MCP 客户端只调用 otw_read。没有 otw_write、订单提交或策略文档更新。
 - 不创建 OTW runs/orders，不调整原有冻结状态，不创建定时任务。
 - AKShare 数据为公开数据源抓取结果，需保留 source/fetched_at/adjustment；接口中断或数据异常必须显式失败。
-- 当前仅支持 A 股、ETF 日线和国内期货日线；开放式公募基金单位净值、财报结构化抓取、库存多源交叉核对仍是后续工作。
+- 当前仅支持 A 股、ETF 日线和国内期货日线；开放式公募基金单位净值、财报分业务拆分、库存多源交叉核对仍是后续工作。
 - 研究证据需要人工确认；当前没有 LLM Agent 自动抓取和自动判断事实。
 - 所有回测和研究输出均 eligible_for_trading=false。不能把回测结果当作真实成交能力或投资建议。

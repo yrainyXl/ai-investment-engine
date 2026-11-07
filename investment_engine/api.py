@@ -13,13 +13,14 @@ from pydantic import BaseModel, Field
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
 from .evidence import EvidenceError, EvidenceStore
+from .financials import FinancialFactStore
 from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
 from .research import build_research_snapshot
 from .report_store import ReportStore
 
-app = FastAPI(title="AI Investment Engine", version="0.3.0")
+app = FastAPI(title="AI Investment Engine", version="0.4.0")
 
 
 class PreviewRequest(BaseModel):
@@ -91,7 +92,7 @@ def _as_of(value: str | None) -> datetime:
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.3.0"}
+    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.4.0"}
 
 
 @app.get("/v1/strategies")
@@ -158,6 +159,23 @@ def list_fundamental_disclosures(symbol: str = "601118", as_of: str | None = Non
         )
         return {"documents": items, "count": len(items),
                 "content_status": "metadata_only_pdf_not_parsed"}
+    except EvidenceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/v1/fundamentals/facts")
+def list_financial_facts(symbol: str = "601118", period: str | None = None,
+                         as_of: str | None = None, limit: int = 500,
+                         authorization: str | None = Header(default=None)):
+    """Read machine-extracted financial facts; all remain pending human review."""
+    _authorize(authorization)
+    try:
+        cutoff = _as_of(as_of) if as_of else None
+        items = FinancialFactStore(os.getenv("ENGINE_DATA_DIR", "data")).list(
+            symbol=symbol, period_label=period, as_of=cutoff, limit=limit,
+        )
+        return {"facts": items, "count": len(items),
+                "eligibility_note": "Machine-extracted values are not thesis evidence until a human verifies the statement scope, period, row mapping and units."}
     except EvidenceError as exc:
         raise HTTPException(422, str(exc)) from exc
 

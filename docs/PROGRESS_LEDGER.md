@@ -185,3 +185,14 @@ DSH 实际状态：
 - DSH 已完成 `ai-engine-m3-inventory-hotfix-73a20c65-20261107-v1` 任务并回传终态：预检通过，当前服务器仍是 PR #6 的 SHA `15b636084a5da9f6320ccf5eb2017c5b9a02c551`、`ai-investment-engine:0.3`、healthz 200/version 0.3.0、仅绑定 127.0.0.1:8018。
 - 未部署 PR #7，原因是服务器 `git fetch origin` 对 GitHub HTTPS SSL timeout，curl 12 秒 0 bytes、git ls-remote 25 秒超时；目标 SHA `73a20c6587c78790d2dd0551dee9182f469f8703` 在服务器本地不可达。DSH 没有 merge、没有重建、没有执行 `sync-industry`，也没有修改工作树/容器/数据。
 - 因此库存 Provider 代码修复已合并 main 但尚未进入服务器；当前仍无库存观察记录。下一步需先解决服务器到 GitHub 的受控代码同步问题，再继续部署。不得把 PR merge 或任务 accepted 说成服务器已更新。
+
+
+## 十八、2026-11-07 M3 财报结构化提取开发中
+
+- 新工单 [Issue #8：M3-FINANCIAL-001](https://github.com/yrainyXl/ai-investment-engine/issues/8)，开发分支 `feat/m3-cninfo-financial-facts-v1`。
+- 新增 `FinancialFact` 结构：精确十进制字符串、币种/元单位声明、季度与年初至今期间、合并报表口径、公告发布时间/抓取时间、PDF 来源、页码、原始行标签、审计状态及人工复核状态。
+- 新增 CNINFO 官方静态 PDF 域名白名单、文件大小/页数限制、pypdf 文本抽取和窄范围季度报表解析器；仅支持机器可读中文季度报告，不启用 OCR。
+- 新增本地 `financial_facts.json`、`sync-financials --period 2026-Q3` CLI、认证只读 `GET /v1/fundamentals/facts`、研究快照数据覆盖计数。
+- 机器提取结果始终 `reviewed_by_human=false`、`unit_verified=false`、`assessment=unassessed`、`eligible_for_assessment=false`。不会自动更新投资 thesis。
+- 目标版本 v0.4.0。CI / PR / 部署尚待完成；部署依赖服务器 GitHub HTTPS fetch 故障先解决。此前 PR #7 库存接口修复仍未进入服务器。
+- 详见 [M3_FINANCIAL_FACTS.md](M3_FINANCIAL_FACTS.md)。

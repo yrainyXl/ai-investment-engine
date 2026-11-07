@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .analysis import parse_time
 from .backtest import run_backtest
 from .evidence import EvidenceStore
 from .providers import AkShareRubberInventoryProvider, CNInfoDisclosureProvider, ProviderError
@@ -71,7 +72,7 @@ def main() -> None:
     elif args.command == "list":
         result = {"series": store.list_series()}
     elif args.command == "sync-industry":
-        as_of = parse_time(args.as_of) if "parse_time" in globals() else datetime.fromisoformat(args.as_of)
+        as_of = parse_time(args.as_of)
         if as_of is None or as_of.tzinfo is None:
             parser.error("--as-of must be RFC3339 with timezone")
         observations = AkShareRubberInventoryProvider().fetch(as_of=as_of)
@@ -117,8 +118,7 @@ def main() -> None:
         print(f"Report: {target}")
         return
     else:
-        from .analysis import parse_time, flatten_tiptap
-        as_of = parse_time(args.as_of)
+                as_of = parse_time(args.as_of)
         if as_of is None or as_of > datetime.now().astimezone():
             parser.error("--as-of must be a valid non-future RFC3339 timestamp with timezone")
         client = OTWReadClient(

@@ -12,6 +12,7 @@ dependencies = []
 [project.optional-dependencies]
 api = ["fastapi>=0.110,<1", "uvicorn>=0.25,<1"]
 market-data = ["akshare>=1.17"]
+fundamentals = ["pypdf>=5,<7"]
 test = ["pytest>=8,<10", "httpx>=0.27,<1"]
 
 [project.scripts]

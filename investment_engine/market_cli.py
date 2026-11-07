@@ -73,8 +73,8 @@ def main() -> None:
         result = {"series": store.list_series()}
     elif args.command == "sync-industry":
         as_of = parse_time(args.as_of)
-        if as_of is None or as_of.tzinfo is None:
-            parser.error("--as-of must be RFC3339 with timezone")
+        if as_of is None or as_of.tzinfo is None or as_of > datetime.now().astimezone():
+            parser.error("--as-of must be a valid non-future RFC3339 timestamp with timezone")
         observations = AkShareRubberInventoryProvider().fetch(as_of=as_of)
         saved = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).save_observations(observations)
         result = {

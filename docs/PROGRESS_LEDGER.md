@@ -171,3 +171,10 @@ DSH 实际状态：
 - DSH request_id=`ai-engine-m3-inventory-signature-readonly-20261107-v1` 实际只读检查 AKShare 1.20.35，`futures_inventory_99(symbol='豆一')`，**没有 `exchange` 参数**；只读调用 `symbol='天然橡胶'` 成功，返回 1181 行，列 `日期`、`收盘价`、`库存`。
 - 上游文档仅称“大宗商品库存数据”，未定义统计范围、计量单位、独立发布日期，故原代码描述“上期所交割仓库库存”缺乏证据。补丁改为 **99qh 天然橡胶库存（统计范围未核实）**；不进入 thesis 因子门，保留 `source_native_unverified`/`published_at=null`/`unit_verified=false`。
 - ChatGPT 修复分支 `fix/m3-99qh-signature-and-scope`，待 CI 验证、合并并让 DSH 定点更新。不可宣称 M3 库存已有数据完成。
+
+
+## 十六、2026-11-07 M3 库存接口修复合并与 DSH 任务派发
+
+- PR #7 修复 AKShare `futures_inventory_99(symbol='天然橡胶')` 真实签名及证据范围错误，CI 已通过；squash merge SHA `73a20c6587c78790d2dd0551dee9182f469f8703`。
+- 新序列为 `99qh_natural_rubber_inventory_scope_unverified`；由于原始 API 无可靠单位、独立发布日期、库存统计范围，入库记录不得算作已确认的上期所、青岛或全国社会库存，不能填补基本面因子门。
+- ChatGPT 实际通过 DSH MCP 派发只更新 Engine 的小版本及一次库存同步，session=`session-codex-ai-engine-m0-session-20261107-v1`，request_id=`ai-engine-m3-inventory-hotfix-73a20c65-20261107-v1`，send 返回 `accepted=true`；**尚未读取终态，任务仍在 DSH 执行队列**。

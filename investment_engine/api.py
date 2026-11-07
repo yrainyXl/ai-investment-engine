@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
+from .evidence import EvidenceError, EvidenceStore
 from .market_data import MarketDataError, MarketDataService, MarketDataStore, completed_daily_bars
 from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
@@ -126,6 +127,39 @@ def preview(req: PreviewRequest, authorization: str | None = Header(default=None
         raise HTTPException(422, "OTW preview failed: OTWError") from exc
     except (ValueError, OSError) as exc:
         raise HTTPException(422, f"Preview failed: {type(exc).__name__}") from exc
+
+
+@app.get("/v1/industry/observations")
+def list_industry_observations(series_id: str | None = None, as_of: str | None = None,
+                               limit: int = 500,
+                               authorization: str | None = Header(default=None)):
+    """Read locally synced industry observations with point-in-time eligibility metadata."""
+    _authorize(authorization)
+    try:
+        cutoff = _as_of(as_of) if as_of else None
+        items = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).list_observations(
+            as_of=cutoff, series_id=series_id, limit=limit,
+        )
+        return {"observations": items, "count": len(items)}
+    except EvidenceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/v1/fundamentals/disclosures")
+def list_fundamental_disclosures(symbol: str = "601118", as_of: str | None = None,
+                                 limit: int = 200,
+                                 authorization: str | None = Header(default=None)):
+    """Read CNINFO disclosure index metadata; this endpoint does not parse PDF facts."""
+    _authorize(authorization)
+    try:
+        cutoff = _as_of(as_of) if as_of else None
+        items = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).list_documents(
+            symbol=symbol, as_of=cutoff, limit=limit,
+        )
+        return {"documents": items, "count": len(items),
+                "content_status": "metadata_only_pdf_not_parsed"}
+    except EvidenceError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/v1/market-data")

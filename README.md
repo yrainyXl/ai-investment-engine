@@ -2,6 +2,14 @@
 
 OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：读取 OTW 真实账户上下文，通过 AKShare 获取公开日线数据，建立可追溯的数据缓存，评估投资假设并运行透明的基准回测。不会写入 OTW runs/orders/documents，也不会连接券商或下真实订单。
 
+## 项目施工与多 Agent 分工
+
+- [施工总纲（目标架构、ChatGPT / DSH / OTW 职责、审批与派发协议）](docs/CONSTRUCTION_PLAYBOOK.md)
+- [任务进度台账（基于真实 DSH 返回更新）](docs/PROGRESS_LEDGER.md)
+- [DSH 连接只读能力探查 Issue #2](https://github.com/yrainyXl/ai-investment-engine/issues/2)
+
+部署和开发状态分开记录；GitHub 合并不等于服务器上线，Issue 创建不等于 DSH 已收到任务。
+
 ## 本阶段已实现
 
 - OTW REST / MCP 只读传输；当前服务器使用 OTW_TRANSPORT=mcp，仅调用 otw_read。

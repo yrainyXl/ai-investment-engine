@@ -5,6 +5,7 @@ AKShare is optional and imported lazily. No source data is silently fabricated.
 from __future__ import annotations
 
 import csv
+import json
 import math
 import os
 import re
@@ -166,6 +167,35 @@ class MarketDataStore:
         tmp.replace(path)
         return path
 
+    def save_quarantine(self, *, symbol: str, asset_type: str, adjustment: str,
+                        source: str, records: list[dict[str, Any]]) -> str:
+        """Durably retain exact excluded source values without altering valid OHLC bars."""
+        path = self._path(asset_type, symbol, adjustment).with_suffix(".quality.json")
+        payload = {
+            "symbol": symbol,
+            "asset_type": asset_type,
+            "adjustment": adjustment,
+            "source": source,
+            "excluded_count": len(records),
+            "excluded_rows": records,
+            "policy": "Known-source exception only; all other inconsistent OHLC bars fail closed",
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        tmp = path.with_suffix(".quality.json.tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(path)
+        return path.name
+
+    def read_quarantine(self, symbol: str, asset_type: str, adjustment: str) -> dict[str, Any]:
+        path = self._path(asset_type, symbol, adjustment).with_suffix(".quality.json")
+        if not path.exists():
+            return {"excluded_count": 0, "excluded_rows": [], "status": "no_quality_sidecar"}
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not isinstance(payload, dict) or not isinstance(payload.get("excluded_count"), int):
+            raise MarketDataError("Invalid quality sidecar")
+        return payload
+
     def load(self, symbol: str, asset_type: str = "stock", adjustment: str = "qfq") -> list[Bar]:
         path = self._path(asset_type, symbol, adjustment)
         if not path.exists():
@@ -198,6 +228,8 @@ class MarketDataStore:
                     "adjustment": first["adjustment"], "interval": first["interval"],
                     "bar_count": len(rows), "first_bar": first["timestamp"], "last_bar": last["timestamp"],
                     "source": first["source"], "path": path.name,
+                    "excluded_rows": self.read_quarantine(first["symbol"], first["asset_type"],
+                                                         first["adjustment"]).get("excluded_count", 0),
                 })
             except (OSError, KeyError):
                 continue
@@ -250,19 +282,40 @@ class AKShareProvider:
         if frame is None or frame.empty:
             raise MarketDataError(f"AKShare returned no rows for {asset_type}:{symbol}")
         bars: list[Bar] = []
+        self.quarantine_records: list[dict[str, Any]] = []
         for record in frame.to_dict(orient="records"):
             raw_date, op, hi, lo, close, volume, amount = mapper(record)
             day = _iso_date(raw_date)
             if day < start.isoformat() or day > end.isoformat():
                 continue
-            bars.append(Bar(
+            bar = Bar(
                 symbol=symbol, exchange=exchange, asset_type=asset_type, interval="1d",
                 timestamp=day, open=float(op), high=float(hi), low=float(lo), close=float(close),
                 volume=float(volume), amount=_finite_number(amount, "amount", optional=True),
                 source=source, fetched_at=fetched_at,
                 adjustment="continuous" if asset_type == "future" else adjustment,
                 currency="CNY", volume_unit=volume_unit,
-            ))
+            )
+            one = validate_bars([bar], as_of=end)
+            if not one["valid"]:
+                # Verified upstream source defect: 2023-08-28 RU0 reports a
+                # close below its intraday low. Never fabricate/alter OHLC.
+                # This narrowly scoped exception is audited in issue #3.
+                if (asset_type == "future" and symbol == "RU0"
+                    and adjustment == "continuous" and day == "2023-08-28"
+                    and (bar.open, bar.high, bar.low, bar.close) == (13270.0, 13425.0, 13225.0, 13200.0)
+                    and one["errors"] == ["row 0: inconsistent OHLC relationship"]):
+                    self.quarantine_records.append({
+                        "date": day, "open": bar.open, "high": bar.high,
+                        "low": bar.low, "close": bar.close, "volume": bar.volume,
+                        "settle": _finite_number(record.get("settle"), "settle", optional=True),
+                        "source": source, "fetched_at": fetched_at,
+                        "reason": "close 13200 below source low 13225; upstream inconsistent OHLC",
+                        "review": "https://github.com/yrainyXl/ai-investment-engine/issues/3",
+                    })
+                    continue
+                raise MarketDataError("AKShare data quality failed: " + "; ".join(one["errors"][:3]))
+            bars.append(bar)
         bars.sort(key=lambda item: item.timestamp)
         if not bars:
             raise MarketDataError(f"No bars in requested date range for {asset_type}:{symbol}")
@@ -315,8 +368,16 @@ class MarketDataService:
         except Exception as exc:
             raise MarketDataError(f"AKShare request failed: {type(exc).__name__}") from exc
         path = self.store.save(bars)
+        quarantine_records = getattr(provider, "quarantine_records", [])
+        quarantine_file = self.store.save_quarantine(
+            symbol=symbol, asset_type=asset_type, adjustment=stored_adjustment,
+            source=bars[0].source, records=quarantine_records,
+        )
         all_bars = self.store.load(symbol, asset_type, stored_adjustment)
         quality = validate_bars(all_bars)
+        if quarantine_records:
+            quality["warnings"].append(f"{len(quarantine_records)} source OHLC bar(s) quarantined; see {quarantine_file}")
+            quality["warning_count"] += 1
         return {
             "symbol": symbol, "asset_type": asset_type, "adjustment": stored_adjustment,
             "source": bars[0].source, "requested_start_date": start_date,
@@ -324,4 +385,6 @@ class MarketDataService:
             "first_bar": all_bars[0].timestamp if all_bars else None,
             "last_bar": all_bars[-1].timestamp if all_bars else None,
             "quality": quality, "storage_file": path.name,
+            "source_record_status": "partial_quarantined" if quarantine_records else "complete",
+            "quarantined_count": len(quarantine_records), "quarantine_file": quarantine_file,
         }

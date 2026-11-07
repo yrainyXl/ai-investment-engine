@@ -13,7 +13,7 @@ Target SHA: **ChatGPT must supply the exact merged SHA after the M3 v0.4 PR is m
 - `git fetch origin`; fast-forward `deploy/v0.2` to the exact target SHA only if it is a clean fast-forward and worktree is clean.
 - Rebuild and restart only the `engine` service in this Compose project.
 - Keep all existing `.env` values unchanged.
-- Write new provider data only under the existing persistent `/data/evidence/` directory by running the two explicit CLI commands below.
+- Write new provider data only under the existing persistent `/data/evidence/` directory by running the explicit CLI commands below.
 - Read local metadata for validation.
 
 ## Forbidden actions
@@ -50,13 +50,14 @@ Do not retry a failed provider call without ChatGPT review. A source failure mus
 
 ## Validation and report
 
-Read local `/data/evidence/source_documents.json` and `/data/evidence/industry_observations.json` metadata only (do not dump full files).
+Read local `/data/evidence/source_documents.json`, `/data/evidence/industry_observations.json`, and `/data/evidence/financial_facts.json` metadata only (do not dump full files or raw PDF text).
 
 Report:
 - actual Git SHA, branch, image tag, health and local bind;
 - CNINFO rows saved, first/last published_at, source name, whether source URLs are HTTPS, and confirm `content_status=metadata_only_pdf_not_parsed`;
 - inventory rows saved, first/last effective date, series_id and source; confirm its statistical scope is **unknown**;
-- explicitly confirm unit is `source_native_unverified`, `published_at=null`, `unit_verified=false`, so this series is not eligible for thesis assessment, and it is not verified as exchange delivery or social inventory;
+- explicitly confirm inventory unit is `source_native_unverified`, `published_at=null`, `unit_verified=false`, so it is not eligible for thesis assessment and is not verified as exchange delivery or social inventory;
+- financial fact count, metrics, period labels, source pages, audit status, and confirm every record remains `machine_extracted_pending_human_review`, `reviewed_by_human=false`, `unit_verified=false`, `eligible_for_assessment=false`;
 - original 601118/RU0 market CSV counts and report files remain present;
 - confirm OTW state was not read/written by this task, no orders and no schedules were touched.
 

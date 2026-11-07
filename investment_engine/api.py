@@ -166,7 +166,9 @@ def get_market_data(symbol: str, asset_type: Literal["stock", "etf", "future"] =
         bars = [x for x in bars if x.timestamp <= end_date]
     return {
         "symbol": symbol, "asset_type": asset_type, "adjustment": adjustment,
-        "bar_count": len(bars), "bars": [x.__dict__ for x in bars],
+        "bar_count": len(bars),
+        "market_data_quality": _store().read_quarantine(symbol, asset_type, adjustment),
+        "bars": [x.__dict__ for x in bars],
     }
 
 
@@ -183,6 +185,7 @@ def backtest(req: BacktestRequest, authorization: str | None = Header(default=No
             fee_bps=req.fee_bps, slippage_bps=req.slippage_bps, as_of=as_of.date(),
         )
         report["data"]["adjustment"] = adjustment
+        report["market_data_quality"] = _store().read_quarantine(req.symbol, req.asset_type, adjustment)
         report["as_of"] = as_of.isoformat()
         report["saved_report"] = _reports().save("backtests", req.symbol, report)
         return report

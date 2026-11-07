@@ -30,7 +30,7 @@
 | M2-DEPLOY-001 | DSH | P0 | done（已存量部署，非本次重部署） | M2-CODE-001 | DSH 在 2026-11-07 20:08 的现场只读报告：git HEAD=`bbff880d2b051ee03a0df35678c9027895be1eec`，分支 `deploy/v0.2`，镜像 `ai-investment-engine:0.2`，/healthz HTTP 200 version=0.2.0，127.0.0.1:8018，healthy | 无需再次部署；保持运行状态 |
 | [M2-MARKET-001](https://github.com/yrainyXl/ai-investment-engine/issues/3) | DSH（执行）/ ChatGPT（评估） | P0 | done（行情接入） | M2-DEPLOY-001 | DSH 实际部署 SHA `f5cc01de4608b18af11e03ca596583743588b2e7`，健康 200；RU0 连续 2144 原始、2143 有效、1 条 2023-08-28 异常隔离，quality.valid=true，研究数据范围 2018-01-02→2026-11-06；601118 2031 条未变；缓存 sidecar 已实物验收 | M2-RESEARCH-001 刷新研究快照并核对绩效摘要 |
 | M2-BACKTEST-001 | DSH（运行）/ ChatGPT（分析） | P0 | done（基线回测） | 601118 真实行情缓存 | DSH 返回 SMA：total_return=-67.4917%、最大回撤=-71.9848%、Sharpe=-0.4587；买入持有：total_return=-5.5948%、最大回撤=-44.5378%；区间 2018-01-02~2026-11-05，2031 条 qfq，均 eligible_for_trading=false | 进入样本外、成本口径和交易规则补强（M4） |
-| M3-PROVIDER-001 | ChatGPT | P1 | ready_to_start | M2 数据口径验收 | DSH 确认基础行情与回测已通过；研究快照中的四项基本面因子全部 missing | 先拆出财报/公告、库存、现货价的独立 provider，建立日期/来源与口径 |
+| [M3-PROVIDER-001](https://github.com/yrainyXl/ai-investment-engine/issues/5) | ChatGPT | P1 | ready_to_start | M2 数据口径验收 | DSH 确认基础行情与回测已通过；研究快照中的四项基本面因子全部 missing | 先拆出财报/公告、库存、现货价的独立 provider，建立日期/来源与口径 |
 | M3-THESIS-001 | ChatGPT | P1 | planned | M3-PROVIDER-001 | 四因素当前仍缺独立证据链 | 记录事实/预期/推断、反证、有效期与失效条件 |
 | M4-REGISTRY-001 | ChatGPT | P1 | planned | M3-THESIS-001 | 未建研究算法与 OTW 账户分离注册表 | 多策略/多组合版本映射，默认 disabled |
 | M4-EXPERIMENT-001 | ChatGPT | P1 | planned | M2-BACKTEST-001、M4-REGISTRY-001 | 回测仍是基础技术指标基线 | 样本外、区间对照、成本敏感性、基准与结果复现 |
@@ -135,3 +135,5 @@ DSH 实际状态：
 - **买入并持有对照（同区间、同源）**：累计收益 `-5.5948%`，年化收益 `-0.7122%`，Sharpe `0.1807`，最大回撤 `-44.5378%`，仓位暴露 `100%`。
 - 参数：单边手续费 `10 bps`、滑点 `5 bps` 为 DSH 据施工命令/CLI 默认值确认，**未在此次报告内逐字段从 JSON 直接读取**；研究使用供应商前复权数据、下一交易日开盘价模拟成交，忽略部分中国市场实际限制，不能认为是真实可交易策略或投资建议。两份回测报告仍保持 `eligible_for_trading=false`，原文件未被重写。
 - **阶段判定**：M2 v0.2 基础行情/研究/回测可标 done（研究基线）；M3 基本面证据仍缺失，`M3-PROVIDER-001` 转入 ready_to_start。维持纸面订单冻结与 OTW MCP 只读权限。
+
+- **下一研发工单**：[Issue #5：M3-PROVIDER-001](https://github.com/yrainyXl/ai-investment-engine/issues/5)，由 ChatGPT 开发；DSH 不自行修改业务代码或启动新的任务。

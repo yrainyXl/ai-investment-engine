@@ -101,6 +101,7 @@ class FinancialFact:
     extraction_status: str = "machine_extracted_pending_human_review"
     reviewed_by_human: bool = False
     unit_verified: bool = False
+    assessment: str = "unassessed"
     evidence_type: str = "confirmed_fact"
     parser_version: str = PARSER_VERSION
 
@@ -127,9 +128,8 @@ class FinancialFact:
             raise EvidenceError("financial fact timestamps must include timezone")
         if self.source_page < 1:
             raise EvidenceError("source_page must be a positive 1-based page number")
-        if self.reviewed_by_human or self.unit_verified:
-            # This parser never grants human approval or unit verification itself.
-            raise EvidenceError("machine extraction cannot self-approve a financial fact")
+        if self.assessment not in {"supporting", "contradicting", "unassessed"}:
+            raise EvidenceError("unsupported financial fact assessment")
 
 
 def parse_quarterly_report_pages(
@@ -218,11 +218,11 @@ def parse_quarterly_report_pages(
     ]
     for metric, label in summary_rows:
         offset, values = _values_after(summary, label, limit=4)
-        page = _page_for_offset(summary_start + offset, page_ranges) or 1
         add(metric, values[0], period_type="quarter", section="main_financial_indicators",
             label=label, offset=summary_start + offset, page_text=summary[offset:offset + 240])
-        add(metric, values[2], period_type="year_to_date", section="main_financial_indicators",
-            label=label, offset=summary_start + offset, page_text=summary[offset:offset + 240])
+        if metric == "net_profit_attributable_ex_nonrecurring":
+            add(metric, values[2], period_type="year_to_date", section="main_financial_indicators",
+                label=label, offset=summary_start + offset, page_text=summary[offset:offset + 240])
 
     # Detailed consolidated income statement. Do not mix it with the parent-only statement.
     income_start = combined.find("合并利润表")
@@ -360,11 +360,18 @@ class FinancialFactStore:
                 continue
             value = dict(item)
             value["visible_as_of"] = visible if as_of is not None else None
-            value["eligible_for_assessment"] = False
+            eligible = bool(
+                value.get("reviewed_by_human") is True
+                and value.get("unit_verified") is True
+                and value.get("assessment") in {"supporting", "contradicting"}
+                and visible
+            )
+            value["eligible_for_assessment"] = eligible
             value["eligibility_reason"] = (
+                "eligible after human review and point-in-time checks" if eligible else
                 "machine extraction requires human verification of statement scope, row mapping, unit and period"
-                if not item.get("reviewed_by_human") else
-                "financial facts need explicit thesis assessment before use"
+                if not item.get("reviewed_by_human") or not item.get("unit_verified") else
+                "financial fact needs an explicit supporting/contradicting thesis assessment"
             )
             output.append(value)
         return output[-limit:]

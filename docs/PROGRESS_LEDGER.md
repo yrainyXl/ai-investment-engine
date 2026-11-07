@@ -23,8 +23,8 @@
 | Task ID | Owner | 优先级 | 状态 | 依赖 | 完成证据 / 阻断原因 | 下一动作 |
 |---|---|---|---|---|---|---|
 | M0-DOC-001 | ChatGPT | P0 | done | 无 | [施工总纲](CONSTRUCTION_PLAYBOOK.md) + 本台账已提交 main | 后续任务变化时维护 |
-| [M0-DSH-001](https://github.com/yrainyXl/ai-investment-engine/issues/2) | ChatGPT / DSH | P0 | blocked | 当前聊天可用 DSH 工具 | GitHub Issue #2 已登记（不等于已通知 DSH）；当前工具目录未暴露 DSH 派发/查询工具；无只读调用成功记录 | 取得当前会话可调用的 DSH 工具名称/插件入口后仅做只读 capability/status 探测 |
-| M0-DSH-002 | ChatGPT / DSH | P0 | planned | M0-DSH-001 | 无真实 DSH task_id、状态流转或回传记录 | 创建一次只读诊断任务，按 task_id 读取终态，记录脱敏结果 |
+| [M0-DSH-001](https://github.com/yrainyXl/ai-investment-engine/issues/2) | ChatGPT / DSH | P0 | done（连接与派发） | 当前聊天可用 DSH 工具 | 已实际通过 `mcp__dsh__list_dsh_sessions` 枚举 Web 会话，并由 `create_dsh_session` 建立项目会话；`send_dsh_message` 返回 `accepted=true` 和 request_id | 等待 DSH 返回只读现场诊断并验收 |
+| M0-DSH-002 | ChatGPT / DSH | P0 | running | M0-DSH-001 | 真实 DSH session `session-codex-ai-engine-m0-session-20261107-v1`；request_id `ai-engine-m0-readonly-dispatch-20261107-v1`；`read_dsh_session` 已验证 `running=true`，暂未看到最终回执 | 等待终态，读取并对账 |
 | M1-OTW-001 | ChatGPT + DSH | P0 | done（按既有部署报告） | OTW paper-trading:r token | DSH 报告 v0.1 健康、策略发现、OTW context/document 时间匹配、无 runs/orders 写入 | 保持权限不变 |
 | M2-CODE-001 | ChatGPT | P0 | done（代码） | M1-OTW-001 | [PR #1](https://github.com/yrainyXl/ai-investment-engine/pull/1) 已 merged，merge SHA `bbff880d2b051ee03a0df35678c9027895be1eec`，PR CI 成功 | 用确定 SHA 给 DSH 部署 |
 | M2-DEPLOY-001 | DSH | P0 | blocked | M0-DSH-001/002，用户对目标版本的批准 | **尚未通过当前通道派发**；未取得服务器 v0.2 运行 SHA | 审批后按 `docs/HARNESS_DEPLOY_TASK.md` 部署，并回传 job_id |
@@ -49,7 +49,7 @@
 - DSH `task_id`：`unknown`；`status`：`not_dispatched`；`result`：`not_received`。
 - 服务端是否已有自定义调度网关、MCP 接口或审批回调：`unknown`；不能从公网 Harness 网页可访问推断其支持外部任务提交。
 
-**结论：目前已完成文档及本会话工具发现，尚未建立可证明的当前聊天 → DSH → 当前聊天任务闭环。** 已创建 [Issue #2](https://github.com/yrainyXl/ai-investment-engine/issues/2) 跟踪只读联通性验证；Issue 的创建**不等于**向 DSH 实际提交任务，不允许把聊天提示词当成真实派发。
+**更新（2026-11-07 20:08 北京时间）：已经实际验证 ChatGPT → DSH Web Session 的建立与消息派发，`accepted=true`；并通过 `read_dsh_session` 确认 `running=true`。当前会话依然尚未取得 DSH 的最终诊断结果，不能标记部署或只读诊断完成。** [Issue #2](https://github.com/yrainyXl/ai-investment-engine/issues/2) 跟踪回读验收。
 
 ## 四、下一阶段派发队列
 
@@ -85,3 +85,13 @@ DSH 实际状态：
 ## 六、变更日志
 
 - **2026-11-07**：施工总纲和进度台账创建；确认 v0.2 PR #1 已合并，区分“代码完成”和“服务器未确认”；当前聊天 DSH 连接工具未暴露，M0-DSH-001 记 blocked 并登记 GitHub Issue #2；未派发 DSH 任务或部署任务，未修改 OTW 运行状态。
+
+
+## 七、2026-11-07 DSH MCP 接入实测更新
+
+- 连接：DSH MCP 插件在当前 ChatGPT 对话内已暴露 `list_dsh_sessions`、`create_dsh_session`、`send_dsh_message`、`read_dsh_session` 等工具。
+- 账户：使用已连接的 DSH 账户；既有 Web Session 已成功列出。
+- 新建项目会话：`session-codex-ai-engine-m0-session-20261107-v1`，工作目录 `/opt/apps/ai-investment-engine`。
+- 消息幂等键：`ai-engine-m0-readonly-dispatch-20261107-v1`；工具实际返回 `accepted=true`，且 read API 返回 `running=true`。
+- 范围：仅只读查看版本、git SHA、容器健康、行情与回测文件元数据；**未授权本轮部署**。
+- 当前 `DSH final result`：尚未收到；部署进度保持原状态，等待结果再更新。

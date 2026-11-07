@@ -262,7 +262,7 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
             stock_bars=stock_bars, futures_symbol=req.futures_symbol,
             futures_bars=futures_bars, evidence=req.evidence,
             strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
-            account_summary=account_summary, as_of=as_of,
+            account_summary=account_summary, provider_data_summary=EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).summary(as_of=as_of), as_of=as_of,
             market_quality={
                 "equity": _store().read_quarantine(symbol, "stock", "qfq"),
                 "commodity_reference": _store().read_quarantine(req.futures_symbol, "future", "continuous")

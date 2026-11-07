@@ -226,6 +226,11 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
             futures_bars=futures_bars, evidence=req.evidence,
             strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
             account_summary=account_summary, as_of=as_of,
+            market_quality={
+                "equity": _store().read_quarantine(symbol, "stock", "qfq"),
+                "commodity_reference": _store().read_quarantine(req.futures_symbol, "future", "continuous")
+                    if req.futures_symbol else {"excluded_count": 0},
+            },
         )
         report["saved_report"] = _reports().save("research", strategy_id, report)
         return report

@@ -152,7 +152,7 @@ def main() -> None:
             stock_bars=stock_bars, futures_symbol=args.futures_symbol,
             futures_bars=futures_bars, evidence=evidence,
             strategy_name=strategy.get("name"), thesis_updated_at=thesis_document.get("updated_at"),
-            account_summary=account_summary, as_of=as_of,
+            account_summary=account_summary, provider_data_summary=EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).summary(as_of=as_of), as_of=as_of,
             market_quality={
                 "equity": store.read_quarantine(symbol, "stock", "qfq"),
                 "commodity_reference": store.read_quarantine(args.futures_symbol, "future", "continuous"),

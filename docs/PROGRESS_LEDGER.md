@@ -185,3 +185,45 @@ DSH 实际状态：
 - DSH 已完成 `ai-engine-m3-inventory-hotfix-73a20c65-20261107-v1` 任务并回传终态：预检通过，当前服务器仍是 PR #6 的 SHA `15b636084a5da9f6320ccf5eb2017c5b9a02c551`、`ai-investment-engine:0.3`、healthz 200/version 0.3.0、仅绑定 127.0.0.1:8018。
 - 未部署 PR #7，原因是服务器 `git fetch origin` 对 GitHub HTTPS SSL timeout，curl 12 秒 0 bytes、git ls-remote 25 秒超时；目标 SHA `73a20c6587c78790d2dd0551dee9182f469f8703` 在服务器本地不可达。DSH 没有 merge、没有重建、没有执行 `sync-industry`，也没有修改工作树/容器/数据。
 - 因此库存 Provider 代码修复已合并 main 但尚未进入服务器；当前仍无库存观察记录。下一步需先解决服务器到 GitHub 的受控代码同步问题，再继续部署。不得把 PR merge 或任务 accepted 说成服务器已更新。
+
+
+## 十八、2026-11-07 M3 财报结构化提取开发中
+
+- 新工单 [Issue #8：M3-FINANCIAL-001](https://github.com/yrainyXl/ai-investment-engine/issues/8)，开发分支 `feat/m3-cninfo-financial-facts-v1`。
+- 新增 `FinancialFact` 结构：精确十进制字符串、币种/元单位声明、季度与年初至今期间、合并报表口径、公告发布时间/抓取时间、PDF 来源、页码、原始行标签、审计状态及人工复核状态。
+- 新增 CNINFO 官方静态 PDF 域名白名单、文件大小/页数限制、pypdf 文本抽取和窄范围季度报表解析器；仅支持机器可读中文季度报告，不启用 OCR。
+- 新增本地 `financial_facts.json`、`sync-financials --period 2026-Q3` CLI、认证只读 `GET /v1/fundamentals/facts`、研究快照数据覆盖计数。
+- 机器提取结果始终 `reviewed_by_human=false`、`unit_verified=false`、`assessment=unassessed`、`eligible_for_assessment=false`。不会自动更新投资 thesis。
+- 目标版本 v0.4.0。CI / PR / 部署尚待完成；部署依赖服务器 GitHub HTTPS fetch 故障先解决。此前 PR #7 库存接口修复仍未进入服务器。
+- 详见 [M3_FINANCIAL_FACTS.md](M3_FINANCIAL_FACTS.md)。
+
+
+## 十九、2026-11-08 通用模型抽象与 M3 财报质量修复
+
+- 按“通用投资研究引擎、海南橡胶仅为首个验收样本”的目标，继续在 PR #9 分支实现，未合并 main、未部署服务器。
+- 新增 `investment_engine/contracts.py`：`CompanyFinancials`、`IndustryMetricDefinition`、`IndustryMetricObservation`、`StrategyDefinition`、`StrategyRegistry`；并提供 CNINFO Provider 专属 `FinancialFact` 到通用财务契约的适配函数。策略注册仅为元数据，不代表启用或执行。
+- CNINFO 解析器移除海南橡胶公司名称回退值；财报公告与 PDF 同步命令要求显式传入 symbol，避免默认绑定 601118。API 先鉴权，再校验 symbol，保持未授权请求返回 401。
+- 修复 PDF 文本压缩时删除数字列分隔空格、导致相邻金额粘连的问题；新增对应回归测试。
+- 新增通用契约、跨行业指标注册、策略注册及 CNINFO→通用财务契约映射测试。
+- GitHub PR #9 当前 head SHA `73f3cf8b3cf8d43aeec6f02817de522602300f22`，GitHub Actions CI 已对该 SHA 返回 success。PR 仍 open，尚未合并。
+- 通用性边界：当前只抽象了契约和注册元数据；CNINFO Provider 仍仅支持机器可读中文季度报告的窄版式，未实现多公司真实报告验收、半年/年度报告、基金净值/持仓 Provider，也未打通策略执行与风控闭环。
+- 已向 DSH 派发只读服务器状态核查，request_id=`ai-engine-generic-m3-server-state-readonly-20261108-v1`，accepted=true，等待终态回执；未授权部署或任何服务器修改。
+- 当前部署仍以此前 DSH 实际回报为准：服务器停留在 v0.3.0 / PR #6 SHA，PR #7 库存修复仍因 GitHub fetch 网络问题未部署。不得将 GitHub CI 成功等同于服务器已更新。
+
+
+## 二十、2026-11-08 DSH 服务器只读状态确认
+
+- DSH request_id=`ai-engine-generic-m3-server-state-readonly-20261108-v1` 已收到终态回执（session `session-codex-ai-engine-m0-session-20261107-v1`，history seq 661，running=false）。
+- 服务器分支 `deploy/v0.2`，HEAD 仍为 `15b636084a5da9f6320ccf5eb2017c5b9a02c551`（PR #6），工作树干净；容器 `ai-investment-engine-engine-1`、image `ai-investment-engine:0.3`、healthz 200/version 0.3.0、监听 `127.0.0.1:8018)。
+- `/data/evidence/source_documents.json` 存在，600 条；`financial_facts.json` 不存在；`industry_observations.json` 不存在。
+- 上一轮诊断记录 raw.githubusercontent.com / objects.githubusercontent.com TLS timeout；本轮未探测网络，因此当前实时状态 unknown。
+- 本轮 DSH 仅执行只读核查，没有修改 Git、文件、配置、容器、服务、OTW 数据或权限。
+- PR #9 最新 head `84671ce1e456e642229b2b4fbfdc977d9004ecf9` 的 GitHub Actions CI 已通过；PR 仍 open，未合并。服务器保持 v0.3，不得误报为已部署 v0.4。
+
+
+## 二十一、2026-11-08 M3 财报样本人工交叉核对
+
+- 已对照 2026-10-29 发布的《海南橡胶 2026 年第三季度报告》PDF 文本副本，核对解析器当前覆盖的关键数值：Q3 营业收入 8,639,374,848.21 元、利润总额 -72,192,335.54 元、归母净利润 -81,184,834.30 元、扣非归母净利润 -103,738,200.27 元；前三季度合并营业收入 23,762,244,302.46 元、营业成本 22,974,588,686.99 元、营业利润 -421,883,756.86 元、利润总额 -300,167,373.65 元、净利润 -369,303,785.56 元、归母净利润 -211,664,225.55 元、少数股东损益 -157,639,560.01 元、经营现金流净额 1,349,976,384.61 元。
+- 已确认报告将合并报表与母公司报表分列：母公司前三季度营业收入为 916,461,970.65 元，合并营业收入为 23,762,244,302.46 元；解析器限定在“合并利润表”与“合并现金流量表”区间，不应把母公司报表数值混入合并口径。
+- 交叉核对来源为报告 PDF 的公开文本副本（Sina 公告页提供的 PDF 镜像），用于人工核对数值和报表范围；尚未在服务器上通过 CNINFO 官方静态 PDF Provider 完成一次端到端下载/解析验收，生产环境页码和原始提取文本仍需 DSH 部署后验证。
+- 参考链接：https://file.finance.sina.com.cn/211.154.219.97:9494/MRGG/CNSESH_STOCK/2026/2026-10/2026-10-29/12671587.PDF

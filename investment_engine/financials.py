@@ -33,7 +33,11 @@ class FinancialParseError(RuntimeError):
 
 
 def _compact(value: str) -> str:
-    return re.sub(r"\s+", "", str(value or "")).replace("−", "-")
+    # PDF extraction may separate adjacent numeric table columns with whitespace.
+    # Preserve those boundaries to avoid concatenating two reported values.
+    normalized = re.sub(r"\s+", " ", str(value or "")).replace("−", "-").strip()
+    normalized = re.sub(r"(?<=[0-9])\s+(?=[0-9,.-])", "\\x00", normalized)
+    return re.sub(r"\s+", "", normalized).replace("\\x00", " ")
 
 
 def _parse_number(token: str) -> str | None:

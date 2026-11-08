@@ -21,6 +21,18 @@ from .research import build_research_snapshot
 SH = ZoneInfo("Asia/Shanghai")
 
 
+def match_quarter_report_documents(documents: list[dict], year: str, quarter: str) -> list[dict]:
+    """Match CNINFO title variants such as '2026年第三季度报告' and '2026年三季度报告'."""
+    quarter_name = {"1": "一", "2": "二", "3": "三", "4": "四"}[quarter]
+    title_pattern = re.compile(
+        rf"{re.escape(year)}年(?:第)?{quarter_name}季度报告"
+    )
+    return [
+        item for item in documents
+        if title_pattern.search(str(item.get("title") or ""))
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI Investment Engine market data and research tools")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -118,13 +130,11 @@ def main() -> None:
         if not period_match:
             parser.error("--period must use YYYY-Q1 through YYYY-Q4")
         year, quarter = period_match.groups()
-        quarter_name = {"1": "一", "2": "二", "3": "三", "4": "四"}[quarter]
-        period_title = f"{year}年{quarter_name}季度报告"
         documents = EvidenceStore(data_root).list_documents(symbol=args.symbol, as_of=as_of, limit=2000)
         if args.document_id:
             matches = [item for item in documents if item.get("document_id") == args.document_id]
         else:
-            matches = [item for item in documents if period_title in str(item.get("title") or "")]
+            matches = match_quarter_report_documents(documents, year, quarter)
         if len(matches) != 1:
             parser.error(f"expected exactly one CNINFO document for {args.period}; found {len(matches)}. Sync disclosures or pass --document-id.")
         facts = CNInfoFinancialReportProvider().fetch_and_parse(matches[0])

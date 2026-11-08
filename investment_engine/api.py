@@ -7,7 +7,7 @@ from hmac import compare_digest
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .analysis import parse_time
@@ -147,7 +147,7 @@ def list_industry_observations(series_id: str | None = None, as_of: str | None =
 
 
 @app.get("/v1/fundamentals/disclosures")
-def list_fundamental_disclosures(symbol: str = "601118", as_of: str | None = None,
+def list_fundamental_disclosures(symbol: str = Query(..., min_length=1), as_of: str | None = None,
                                  limit: int = 200,
                                  authorization: str | None = Header(default=None)):
     """Read CNINFO disclosure index metadata; this endpoint does not parse PDF facts."""
@@ -164,7 +164,7 @@ def list_fundamental_disclosures(symbol: str = "601118", as_of: str | None = Non
 
 
 @app.get("/v1/fundamentals/facts")
-def list_financial_facts(symbol: str = "601118", period: str | None = None,
+def list_financial_facts(symbol: str = Query(..., min_length=1), period: str | None = None,
                          as_of: str | None = None, limit: int = 500,
                          authorization: str | None = Header(default=None)):
     """Read machine-extracted financial facts; all remain pending human review."""

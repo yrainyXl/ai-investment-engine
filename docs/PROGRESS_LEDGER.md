@@ -196,3 +196,16 @@ DSH 实际状态：
 - 机器提取结果始终 `reviewed_by_human=false`、`unit_verified=false`、`assessment=unassessed`、`eligible_for_assessment=false`。不会自动更新投资 thesis。
 - 目标版本 v0.4.0。CI / PR / 部署尚待完成；部署依赖服务器 GitHub HTTPS fetch 故障先解决。此前 PR #7 库存接口修复仍未进入服务器。
 - 详见 [M3_FINANCIAL_FACTS.md](M3_FINANCIAL_FACTS.md)。
+
+
+## 十九、2026-11-08 通用模型抽象与 M3 财报质量修复
+
+- 按“通用投资研究引擎、海南橡胶仅为首个验收样本”的目标，继续在 PR #9 分支实现，未合并 main、未部署服务器。
+- 新增 `investment_engine/contracts.py`：`CompanyFinancials`、`IndustryMetricDefinition`、`IndustryMetricObservation`、`StrategyDefinition`、`StrategyRegistry`；并提供 CNINFO Provider 专属 `FinancialFact` 到通用财务契约的适配函数。策略注册仅为元数据，不代表启用或执行。
+- CNINFO 解析器移除海南橡胶公司名称回退值；财报公告与 PDF 同步命令要求显式传入 symbol，避免默认绑定 601118。API 先鉴权，再校验 symbol，保持未授权请求返回 401。
+- 修复 PDF 文本压缩时删除数字列分隔空格、导致相邻金额粘连的问题；新增对应回归测试。
+- 新增通用契约、跨行业指标注册、策略注册及 CNINFO→通用财务契约映射测试。
+- GitHub PR #9 当前 head SHA `73f3cf8b3cf8d43aeec6f02817de522602300f22`，GitHub Actions CI 已对该 SHA 返回 success。PR 仍 open，尚未合并。
+- 通用性边界：当前只抽象了契约和注册元数据；CNINFO Provider 仍仅支持机器可读中文季度报告的窄版式，未实现多公司真实报告验收、半年/年度报告、基金净值/持仓 Provider，也未打通策略执行与风控闭环。
+- 已向 DSH 派发只读服务器状态核查，request_id=`ai-engine-generic-m3-server-state-readonly-20261108-v1`，accepted=true，等待终态回执；未授权部署或任何服务器修改。
+- 当前部署仍以此前 DSH 实际回报为准：服务器停留在 v0.3.0 / PR #6 SHA，PR #7 库存修复仍因 GitHub fetch 网络问题未部署。不得将 GitHub CI 成功等同于服务器已更新。

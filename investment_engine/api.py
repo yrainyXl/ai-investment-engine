@@ -7,7 +7,7 @@ from hmac import compare_digest
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .analysis import parse_time

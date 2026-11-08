@@ -4,7 +4,7 @@ ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY pyproject.toml ./
 COPY investment_engine ./investment_engine
 COPY fixtures ./fixtures
-RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" '.[api,market-data]'
+RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" '.[api,market-data,fundamentals]'
 RUN mkdir -p /data && chown nobody:nogroup /data
 ENV ENGINE_DATA_DIR=/data
 USER nobody

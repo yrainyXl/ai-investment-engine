@@ -227,3 +227,12 @@ DSH 实际状态：
 - 已确认报告将合并报表与母公司报表分列：母公司前三季度营业收入为 916,461,970.65 元，合并营业收入为 23,762,244,302.46 元；解析器限定在“合并利润表”与“合并现金流量表”区间，不应把母公司报表数值混入合并口径。
 - 交叉核对来源为报告 PDF 的公开文本副本（Sina 公告页提供的 PDF 镜像），用于人工核对数值和报表范围；尚未在服务器上通过 CNINFO 官方静态 PDF Provider 完成一次端到端下载/解析验收，生产环境页码和原始提取文本仍需 DSH 部署后验证。
 - 参考链接：https://file.finance.sina.com.cn/211.154.219.97:9494/MRGG/CNSESH_STOCK/2026/2026-10/2026-10-29/12671587.PDF
+
+
+## 二十二、2026-11-08 PR #9 合并与部署阻塞（最新状态）
+
+- PR #9 已于 2026-11-08 squash merge 至 `main`，合并 SHA：`ec1e863980d7746f7c90ddcd01650fcfa223f91a`。合并前最新 head SHA `12295cfb492eebd0791f1054f8a70b5cdcbf2c06` 的 GitHub Actions CI 为 success。
+- PR #9 已纳入通用财务/行业指标契约、策略注册元数据、CNINFO 财报 Provider、财务事实适配、数字列分隔修复和测试。注意：通用契约已落地，但行业/策略注册目前仍是基础数据结构，不代表决策 Agent、量化风控或交易闭环已完成。
+- DSH 已完成服务器只读检查：当前仍为 `deploy/v0.2` / SHA `15b636084a5da9f6320ccf5eb2017c5b9a02c551` / image `ai-investment-engine:0.3` / healthz v0.3.0；财务事实与行业观察文件缺失。
+- DSH 对 GitHub 做一次只读 `git ls-remote` 检查，15 秒超时（exit 124），未取回 main SHA。未执行 fetch/pull/deploy，未修改服务器。
+- 因服务器 Git-over-HTTPS 不通，暂不派发部署；待网络恢复后，DSH 必须以本节精确 merge SHA `ec1e863980d7746f7c90ddcd01650fcfa223f91a` 进行 fast-forward 部署。部署后再做 CNINFO PDF 实际抓取、页码与事实条数核验，并同步一次库存 Provider；数据仍需人工审核，不自动进入 thesis。

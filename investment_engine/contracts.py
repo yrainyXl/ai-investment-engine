@@ -36,14 +36,23 @@ class CompanyFinancials:
     published_at: str
     retrieved_at: str
     unit_basis: str
+    entity_name: str | None = None
     source_page: int | None = None
+    source_section: str | None = None
     source_label: str | None = None
+    source_excerpt: str | None = None
     audit_status: Literal["audited", "unaudited", "reviewed", "unknown"] = "unknown"
     extraction_status: Literal["machine_extracted_pending_human_review", "human_verified"] = "machine_extracted_pending_human_review"
 
     def validate(self) -> None:
         if not self.entity_id or not self.metric or not self.source_id or not self.source_name:
             raise FinancialContractError("entity, metric and source identity are required")
+        if self.entity_type not in {"equity", "etf", "fund", "issuer"}:
+            raise FinancialContractError("unsupported entity_type")
+        if self.period_type not in {"quarter", "half_year", "year", "year_to_date", "point_in_time"}:
+            raise FinancialContractError("unsupported period_type")
+        if self.statement_scope not in {"consolidated", "parent", "fund", "unknown"}:
+            raise FinancialContractError("unsupported statement_scope")
         if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", self.period_start):
             raise FinancialContractError("period_start must be YYYY-MM-DD")
         if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", self.period_end) or self.period_end < self.period_start:
@@ -150,3 +159,41 @@ class StrategyRegistry:
         if enabled_only:
             items = [item for item in items if item["enabled"]]
         return sorted(items, key=lambda item: item["strategy_id"])
+
+
+
+def company_financial_from_fact(fact: Any) -> CompanyFinancials:
+    """Adapt a provider-specific FinancialFact into the shared contract."""
+    if hasattr(fact, "validate"):
+        fact.validate()
+    reviewed = (
+        getattr(fact, "reviewed_by_human", False) is True
+        and getattr(fact, "unit_verified", False) is True
+    )
+    item = CompanyFinancials(
+        entity_id=str(fact.symbol),
+        entity_type="equity",
+        entity_name=str(getattr(fact, "issuer_name", "") or "") or None,
+        metric=str(fact.metric),
+        value=str(fact.value),
+        currency=str(fact.currency),
+        scale=str(fact.value_scale),
+        period_type=str(fact.period_type),
+        period_start=str(fact.period_start),
+        period_end=str(fact.period_end),
+        statement_scope=str(fact.statement_scope),
+        source_id=str(fact.source_document_id),
+        source_name=str(fact.source_name),
+        source_url=str(fact.source_url),
+        published_at=str(fact.published_at),
+        retrieved_at=str(fact.retrieved_at),
+        unit_basis=str(fact.unit_basis),
+        source_page=int(fact.source_page) if getattr(fact, "source_page", None) else None,
+        source_section=getattr(fact, "source_section", None),
+        source_label=getattr(fact, "source_label", None),
+        source_excerpt=getattr(fact, "source_excerpt", None),
+        audit_status=str(getattr(fact, "audit_status", "unknown")),
+        extraction_status="human_verified" if reviewed else "machine_extracted_pending_human_review",
+    )
+    item.validate()
+    return item

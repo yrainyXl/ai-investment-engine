@@ -154,7 +154,9 @@ def parse_quarterly_report_pages(
     published_at = str(document.get("published_at") or "")
     source_url = str(document.get("source_url") or "")
     source_name = "cninfo.official_disclosure_pdf"
-    issuer = str(document.get("issuer_name") or "海南天然橡胶产业集团股份有限公司")
+    issuer = str(document.get("issuer_name") or "")
+    if not issuer:
+        raise FinancialParseError("source document issuer_name is required; no issuer-specific fallback is allowed")
     if not re.fullmatch(r"\d{6}", symbol) or not document_id:
         raise FinancialParseError("source document symbol or document_id is missing")
     if _parse_aware(published_at) is None:
@@ -291,7 +293,7 @@ class CNInfoFinancialReportProvider:
         if not str(document.get("title") or "").endswith("报告") or "季度报告" not in str(document.get("title") or ""):
             raise FinancialParseError("selected document is not a quarterly report")
         request = Request(source_url, headers={
-            "User-Agent": "Mozilla/5.0 (compatible; AIInvestmentEngine/0.3)",
+            "User-Agent": "Mozilla/5.0 (compatible; AIInvestmentEngine/0.4)",
             "Accept": "application/pdf,*/*;q=0.8",
             "Referer": "https://www.cninfo.com.cn/",
         })

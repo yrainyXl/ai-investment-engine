@@ -209,3 +209,13 @@ DSH 实际状态：
 - 通用性边界：当前只抽象了契约和注册元数据；CNINFO Provider 仍仅支持机器可读中文季度报告的窄版式，未实现多公司真实报告验收、半年/年度报告、基金净值/持仓 Provider，也未打通策略执行与风控闭环。
 - 已向 DSH 派发只读服务器状态核查，request_id=`ai-engine-generic-m3-server-state-readonly-20261108-v1`，accepted=true，等待终态回执；未授权部署或任何服务器修改。
 - 当前部署仍以此前 DSH 实际回报为准：服务器停留在 v0.3.0 / PR #6 SHA，PR #7 库存修复仍因 GitHub fetch 网络问题未部署。不得将 GitHub CI 成功等同于服务器已更新。
+
+
+## 二十、2026-11-08 DSH 服务器只读状态确认
+
+- DSH request_id=`ai-engine-generic-m3-server-state-readonly-20261108-v1` 已收到终态回执（session `session-codex-ai-engine-m0-session-20261107-v1`，history seq 661，running=false）。
+- 服务器分支 `deploy/v0.2`，HEAD 仍为 `15b636084a5da9f6320ccf5eb2017c5b9a02c551`（PR #6），工作树干净；容器 `ai-investment-engine-engine-1`、image `ai-investment-engine:0.3`、healthz 200/version 0.3.0、监听 `127.0.0.1:8018)。
+- `/data/evidence/source_documents.json` 存在，600 条；`financial_facts.json` 不存在；`industry_observations.json` 不存在。
+- 上一轮诊断记录 raw.githubusercontent.com / objects.githubusercontent.com TLS timeout；本轮未探测网络，因此当前实时状态 unknown。
+- 本轮 DSH 仅执行只读核查，没有修改 Git、文件、配置、容器、服务、OTW 数据或权限。
+- PR #9 最新 head `84671ce1e456e642229b2b4fbfdc977d9004ecf9` 的 GitHub Actions CI 已通过；PR 仍 open，未合并。服务器保持 v0.3，不得误报为已部署 v0.4。

@@ -9,6 +9,8 @@ from investment_engine.financials import (
     FinancialFactStore,
     FinancialParseError,
     parse_quarterly_report_pages,
+    _compact,
+    NUMBER_RE,
 )
 
 
@@ -172,3 +174,8 @@ def test_pdf_provider_uses_text_pages_and_never_approves(monkeypatch):
     facts = CNInfoFinancialReportProvider(opener=Opener()).fetch_and_parse(DOCUMENT)
     assert len(facts) >= 10
     assert all(not item.reviewed_by_human and not item.unit_verified for item in facts)
+
+
+def test_compact_preserves_numeric_column_boundaries():
+    normalized = _compact("营业收入 23,762,244,302.46 30,574,470,082.36")
+    assert NUMBER_RE.findall(normalized) == ["23,762,244,302.46", "30,574,470,082.36"]

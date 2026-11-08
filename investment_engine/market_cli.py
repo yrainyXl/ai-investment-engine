@@ -58,13 +58,13 @@ def main() -> None:
     industry.add_argument("--as-of", default=datetime.now(SH).isoformat())
 
     disclosures = sub.add_parser("sync-disclosures", help="Index official CNINFO disclosures; PDFs are not parsed")
-    disclosures.add_argument("--symbol", default="601118")
+    disclosures.add_argument("--symbol", required=True)
     disclosures.add_argument("--start-date", default="2020-01-01")
     disclosures.add_argument("--end-date", default=datetime.now(SH).date().isoformat())
     disclosures.add_argument("--max-pages", type=int, default=5)
 
     financials = sub.add_parser("sync-financials", help="Download and parse one CNINFO quarterly report PDF")
-    financials.add_argument("--symbol", default="601118")
+    financials.add_argument("--symbol", required=True)
     financials.add_argument("--period", required=True, help="Quarter such as 2026-Q3")
     financials.add_argument("--document-id", default="", help="Optional exact CNINFO document id")
     financials.add_argument("--as-of", default=datetime.now(SH).isoformat())

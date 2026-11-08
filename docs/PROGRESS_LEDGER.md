@@ -236,3 +236,12 @@ DSH 实际状态：
 - DSH 已完成服务器只读检查：当前仍为 `deploy/v0.2` / SHA `15b636084a5da9f6320ccf5eb2017c5b9a02c551` / image `ai-investment-engine:0.3` / healthz v0.3.0；财务事实与行业观察文件缺失。
 - DSH 对 GitHub 做一次只读 `git ls-remote` 检查，15 秒超时（exit 124），未取回 main SHA。未执行 fetch/pull/deploy，未修改服务器。
 - 因服务器 Git-over-HTTPS 不通，暂不派发部署；待网络恢复后，DSH 必须以本节精确 merge SHA `ec1e863980d7746f7c90ddcd01650fcfa223f91a` 进行 fast-forward 部署。部署后再做 CNINFO PDF 实际抓取、页码与事实条数核验，并同步一次库存 Provider；数据仍需人工审核，不自动进入 thesis。
+
+
+## 二十三、2026-11-08 v0.4.0 DSH 部署任务已派发
+
+- DSH request_id=`ai-engine-m3-v04-deploy-ec1e8639-20261108-v1`，已 accepted，等待终态回执。
+- 目标 SHA 固定为 PR #9 squash merge SHA `ec1e863980d7746f7c90ddcd01650fcfa223f91a`，目标镜像 `ai-investment-engine:0.4` / API `0.4.0`。
+- 任务严格要求先检查工作树，再 fetch 并验证 SHA；只有网络和 fast-forward 前置条件通过才允许重建 engine。若 fetch 超时必须停止，不修改服务器。
+- 任务获准的公开数据同步仅包括 CNINFO 公告元数据、99qh 库存（范围未知）和 2026-Q3 财报 PDF；全部只写本地 `/data/evidence`。不触碰 OTW、订单、调度、账户、策略、权限或其他服务。
+- 当前不得将任务 accepted / running 视为部署完成；实际部署 SHA、健康检查和数据文件结果以 DSH 终态回执为准。

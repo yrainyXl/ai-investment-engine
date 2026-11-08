@@ -147,11 +147,13 @@ def list_industry_observations(series_id: str | None = None, as_of: str | None =
 
 
 @app.get("/v1/fundamentals/disclosures")
-def list_fundamental_disclosures(symbol: str = Query(..., min_length=1), as_of: str | None = None,
+def list_fundamental_disclosures(symbol: str | None = None, as_of: str | None = None,
                                  limit: int = 200,
                                  authorization: str | None = Header(default=None)):
     """Read CNINFO disclosure index metadata; this endpoint does not parse PDF facts."""
     _authorize(authorization)
+    if not symbol:
+        raise HTTPException(422, "symbol is required")
     try:
         cutoff = _as_of(as_of) if as_of else None
         items = EvidenceStore(os.getenv("ENGINE_DATA_DIR", "data")).list_documents(
@@ -164,11 +166,13 @@ def list_fundamental_disclosures(symbol: str = Query(..., min_length=1), as_of: 
 
 
 @app.get("/v1/fundamentals/facts")
-def list_financial_facts(symbol: str = Query(..., min_length=1), period: str | None = None,
+def list_financial_facts(symbol: str | None = None, period: str | None = None,
                          as_of: str | None = None, limit: int = 500,
                          authorization: str | None = Header(default=None)):
     """Read machine-extracted financial facts; all remain pending human review."""
     _authorize(authorization)
+    if not symbol:
+        raise HTTPException(422, "symbol is required")
     try:
         cutoff = _as_of(as_of) if as_of else None
         items = FinancialFactStore(os.getenv("ENGINE_DATA_DIR", "data")).list(

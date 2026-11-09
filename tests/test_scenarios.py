@@ -11,7 +11,8 @@ def make_variable(name, value):
         period_type="quarter", period_start="2026-07-01", period_end="2026-09-30",
         source_id=f"source:{name}", published_at="2026-10-29T18:00:00+08:00",
         effective_at="2026-09-30T16:00:00+08:00", retrieved_at="2026-10-30T09:00:00+08:00",
-        reviewed_by_human=True, unit_verified=True, scope_verified=True,
+        reviewed_by_human=True, reviewed_at="2026-10-30T09:00:00+08:00",
+        unit_verified=True, scope_verified=True,
     )
 
 

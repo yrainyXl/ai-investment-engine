@@ -8,7 +8,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
@@ -21,10 +21,6 @@ from .research import build_research_snapshot
 from .report_store import ReportStore
 from .hypotheses import HypothesisDefinition, HypothesisError, HypothesisVariable, evaluate_hypothesis
 from .scenarios import ScenarioDefinition, evaluate_scenarios
-from .valuation import (
-    DCFInput, ValuationError, ValuationMetric, calculate_dcf,
-    calculate_multiple_valuation, dcf_sensitivity,
-)
 
 app = FastAPI(title="AI Investment Engine", version="0.4.0")
 
@@ -79,22 +75,18 @@ class HypothesisDefinitionPayload(BaseModel):
     max_age_days: int | None = Field(default=None, ge=0, le=36500)
 
 
-class HypothesisVariablePayload(BaseModel):
+class HypothesisFactReferencePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     variable_id: str = Field(min_length=1, max_length=128)
-    metric_id: str = Field(min_length=1, max_length=128)
-    value: str
-    unit: str = Field(min_length=1, max_length=64)
-    period_type: str = Field(min_length=1, max_length=32)
-    period_start: str
-    period_end: str
-    source_id: str = Field(min_length=1, max_length=512)
-    published_at: str
-    effective_at: str
-    retrieved_at: str
-    reviewed_by_human: bool = False
-    unit_verified: bool = False
-    scope_verified: bool = False
-    input_kind: Literal["observed", "scenario_assumption"] = "observed"
+    fact_id: str = Field(min_length=1, max_length=128)
+
+
+class FinancialFactReviewPayload(BaseModel):
+    reviewer_id: str = Field(min_length=1, max_length=128)
+    review_note: str = Field(min_length=1, max_length=2000)
+    unit_verified: bool
+    scope_verified: bool
+    confirm_source_checked: bool = False
 
 
 class ScenarioDefinitionPayload(BaseModel):
@@ -106,64 +98,12 @@ class ScenarioDefinitionPayload(BaseModel):
 
 class HypothesisEvaluationRequest(BaseModel):
     hypothesis: HypothesisDefinitionPayload
-    variables: list[HypothesisVariablePayload] = Field(min_length=1, max_length=32)
+    fact_refs: list[HypothesisFactReferencePayload] = Field(min_length=1, max_length=32)
     as_of: str | None = None
 
 
 class HypothesisScenariosRequest(HypothesisEvaluationRequest):
     scenarios: list[ScenarioDefinitionPayload] = Field(min_length=1, max_length=20)
-
-
-class ValuationMetricPayload(BaseModel):
-    metric_id: str = Field(min_length=1, max_length=128)
-    value: str
-    unit: str = Field(min_length=1, max_length=64)
-    period_end: str
-    source_id: str = Field(min_length=1, max_length=512)
-    published_at: str
-    effective_at: str
-    retrieved_at: str
-    reviewed_by_human: bool = False
-    unit_verified: bool = False
-    scope_verified: bool = False
-
-
-class DCFInputPayload(BaseModel):
-    entity_id: str = Field(min_length=1, max_length=128)
-    currency: str = Field(min_length=3, max_length=3)
-    forecast_fcf: list[str] = Field(min_length=1, max_length=30)
-    discount_rate: str
-    terminal_growth: str
-    net_debt: str
-    shares_outstanding: str
-    net_debt_source_id: str = Field(min_length=1, max_length=512)
-    shares_source_id: str = Field(min_length=1, max_length=512)
-    net_debt_published_at: str
-    net_debt_effective_at: str
-    net_debt_retrieved_at: str
-    shares_published_at: str
-    shares_effective_at: str
-    shares_retrieved_at: str
-    assumptions_as_of: str
-    assumptions_reviewed_by_human: bool = False
-    source_facts_reviewed_by_human: bool = False
-    unit_verified: bool = False
-    scope_verified: bool = False
-
-
-class MultipleValuationRequest(BaseModel):
-    metric: ValuationMetricPayload
-    multiple_name: str = Field(min_length=1, max_length=32)
-    multiple: str
-    as_of: str | None = None
-    require_human_review: bool = True
-
-
-class DCFValuationRequest(BaseModel):
-    model: DCFInputPayload
-    as_of: str | None = None
-    sensitivity_discount_rates: list[str] = Field(default_factory=list, max_length=20)
-    sensitivity_terminal_growth_rates: list[str] = Field(default_factory=list, max_length=20)
 
 
 def _authorize(authorization: str | None, *, otw_access: bool = False) -> None:
@@ -188,6 +128,37 @@ def _store() -> MarketDataStore:
 
 def _reports() -> ReportStore:
     return ReportStore(os.getenv("ENGINE_DATA_DIR", "data"))
+
+
+def _resolve_financial_fact_refs(fact_refs, *, entity_id: str, as_of: datetime):
+    store = FinancialFactStore(os.getenv("ENGINE_DATA_DIR", "data"))
+    resolved = {}
+    for ref in fact_refs:
+        if ref.variable_id in resolved:
+            raise HypothesisError(f"duplicate variable_id: {ref.variable_id}")
+        fact = store.get_by_id(ref.fact_id, as_of=as_of)
+        if fact is None:
+            raise HypothesisError(f"financial fact not found or not visible as of: {ref.fact_id}")
+        if str(fact.get("symbol")) != entity_id:
+            raise HypothesisError(f"fact {ref.fact_id} belongs to a different entity")
+        period_end = str(fact["period_end"])
+        resolved[ref.variable_id] = HypothesisVariable(
+            variable_id=ref.variable_id,
+            metric_id=str(fact["metric"]),
+            value=str(fact["value"]),
+            unit=str(fact["currency"]),
+            period_type=str(fact["period_type"]),
+            period_start=str(fact["period_start"]),
+            period_end=period_end,
+            source_id=str(fact["fact_id"]),
+            published_at=str(fact["published_at"]),
+            effective_at=f"{period_end}T23:59:59+08:00",
+            retrieved_at=str(fact["retrieved_at"]),
+            reviewed_by_human=fact.get("reviewed_by_human") is True,
+            unit_verified=fact.get("unit_verified") is True,
+            scope_verified=fact.get("scope_verified") is True,
+        )
+    return resolved
 
 
 def _as_of(value: str | None) -> datetime:
@@ -406,22 +377,51 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
         raise HTTPException(422, "OTW research context unavailable") from exc
 
 
+@app.post("/v1/fundamentals/facts/{fact_id}/review")
+def review_financial_fact_endpoint(fact_id: str, req: FinancialFactReviewPayload,
+                                   authorization: str | None = Header(default=None)):
+    """Record an explicit human review; never called by scheduled ingestion or analysis."""
+    _authorize(authorization)
+    if not req.confirm_source_checked:
+        raise HTTPException(400, "Explicit source-review confirmation is required")
+    try:
+        reviewed = FinancialFactStore(os.getenv("ENGINE_DATA_DIR", "data")).review(
+            fact_id, reviewer_id=req.reviewer_id, review_note=req.review_note,
+            unit_verified=req.unit_verified, scope_verified=req.scope_verified,
+        )
+        saved = _reports().save("fact_review", "manual_review", {
+            "fact_id": fact_id, "reviewer_id": req.reviewer_id,
+            "review_note": req.review_note, "unit_verified": req.unit_verified,
+            "scope_verified": req.scope_verified, "assessment": "unassessed",
+        })
+        return {
+            "fact": {key: reviewed.get(key) for key in (
+                "fact_id", "symbol", "metric", "value", "unit", "period_label",
+                "statement_scope", "reviewed_by_human", "unit_verified",
+                "scope_verified", "reviewed_at", "reviewer_id", "assessment",
+            )},
+            "report": saved,
+            "note": "Review does not automatically mark the fact as supporting or contradicting any thesis.",
+        }
+    except EvidenceError as exc:
+        raise HTTPException(404 if "not found" in str(exc) else 422, str(exc)) from exc
+
+
 @app.post("/v1/hypotheses/evaluate")
 def evaluate_hypothesis_endpoint(req: HypothesisEvaluationRequest,
                                  authorization: str | None = Header(default=None)):
-    """Evaluate explicitly supplied, provenance-rich inputs; persist only a local audit report."""
+    """Evaluate only facts resolved from the local evidence store; persist a local audit report."""
     _authorize(authorization)
-    as_of = _as_of(req.as_of).isoformat()
+    as_of = _as_of(req.as_of)
     try:
         definition_data = req.hypothesis.model_dump()
         definition_data["variables"] = tuple(definition_data["variables"])
         definition_data["weights"] = tuple(definition_data["weights"])
         definition = HypothesisDefinition(**definition_data)
-        items = [HypothesisVariable(**item.model_dump()) for item in req.variables]
-        inputs = {item.variable_id: item for item in items}
-        if len(inputs) != len(items):
-            raise HypothesisError("duplicate variable_id in request")
-        result = evaluate_hypothesis(definition, inputs, as_of=as_of)
+        inputs = _resolve_financial_fact_refs(
+            req.fact_refs, entity_id=definition.entity_id, as_of=as_of,
+        )
+        result = evaluate_hypothesis(definition, inputs, as_of=as_of.isoformat())
         saved = _reports().save("hypothesis", "evaluation", result.to_dict())
         return {"evaluation": result.to_dict(), "report": saved,
                 "side_effects": "local_audit_report_only", "orders_enabled": False}
@@ -432,71 +432,23 @@ def evaluate_hypothesis_endpoint(req: HypothesisEvaluationRequest,
 @app.post("/v1/hypotheses/scenarios")
 def evaluate_hypothesis_scenarios_endpoint(req: HypothesisScenariosRequest,
                                            authorization: str | None = Header(default=None)):
-    """Compare a baseline with explicit what-if assumptions; no facts are overwritten."""
+    """Compare local reviewed facts with explicit what-if assumptions; facts are never overwritten."""
     _authorize(authorization)
-    as_of = _as_of(req.as_of).isoformat()
+    as_of = _as_of(req.as_of)
     try:
         definition_data = req.hypothesis.model_dump()
         definition_data["variables"] = tuple(definition_data["variables"])
         definition_data["weights"] = tuple(definition_data["weights"])
         definition = HypothesisDefinition(**definition_data)
-        items = [HypothesisVariable(**item.model_dump()) for item in req.variables]
-        inputs = {item.variable_id: item for item in items}
-        if len(inputs) != len(items):
-            raise HypothesisError("duplicate variable_id in request")
+        inputs = _resolve_financial_fact_refs(
+            req.fact_refs, entity_id=definition.entity_id, as_of=as_of,
+        )
         scenarios = tuple(ScenarioDefinition(**item.model_dump()) for item in req.scenarios)
-        result = evaluate_scenarios(definition, inputs, scenarios, as_of=as_of)
+        result = evaluate_scenarios(definition, inputs, scenarios, as_of=as_of.isoformat())
         saved = _reports().save("scenario", "evaluation", result.to_dict())
         return {"scenarios": result.to_dict(), "report": saved,
                 "side_effects": "local_audit_report_only", "orders_enabled": False}
     except HypothesisError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-
-@app.post("/v1/valuation/multiples")
-def calculate_multiple_valuation_endpoint(req: MultipleValuationRequest,
-                                          authorization: str | None = Header(default=None)):
-    _authorize(authorization)
-    as_of = _as_of(req.as_of).isoformat()
-    try:
-        metric = ValuationMetric(**req.metric.model_dump())
-        result = calculate_multiple_valuation(
-            metric, multiple_name=req.multiple_name, multiple=req.multiple,
-            as_of=as_of, require_human_review=req.require_human_review,
-        )
-        saved = _reports().save("valuation", "multiple", result.to_dict())
-        return {"valuation": result.to_dict(), "report": saved,
-                "side_effects": "local_audit_report_only", "orders_enabled": False}
-    except (ValuationError, TypeError) as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-
-@app.post("/v1/valuation/dcf")
-def calculate_dcf_endpoint(req: DCFValuationRequest,
-                           authorization: str | None = Header(default=None)):
-    _authorize(authorization)
-    as_of = _as_of(req.as_of).isoformat()
-    try:
-        model_data = req.model.model_dump()
-        model_data["forecast_fcf"] = tuple(model_data["forecast_fcf"])
-        model = DCFInput(**model_data)
-        result = calculate_dcf(model, as_of=as_of)
-        sensitivity = []
-        if req.sensitivity_discount_rates or req.sensitivity_terminal_growth_rates:
-            if not req.sensitivity_discount_rates or not req.sensitivity_terminal_growth_rates:
-                raise ValuationError("both sensitivity rate lists are required")
-            sensitivity = [
-                item.__dict__ for item in dcf_sensitivity(
-                    model, as_of=as_of,
-                    discount_rates=tuple(req.sensitivity_discount_rates),
-                    terminal_growth_rates=tuple(req.sensitivity_terminal_growth_rates),
-                )
-            ]
-        payload = {"valuation": result.to_dict(), "sensitivity": sensitivity}
-        saved = _reports().save("valuation", "dcf", payload)
-        return {**payload, "report": saved,
-                "side_effects": "local_audit_report_only", "orders_enabled": False}
-    except (ValuationError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
 

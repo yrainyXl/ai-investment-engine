@@ -249,3 +249,14 @@ def test_review_completed_after_as_of_is_not_used_in_historical_evaluation():
     )
     assert result.status == "not_evaluable"
     assert any("human review occurred after as_of" in item for item in result.reasons)
+
+
+def test_growth_rejects_overlapping_comparison_periods():
+    current = variable("current", "125", start="2026-01-01", end="2026-09-30")
+    prior = variable("prior", "100", start="2025-06-01", end="2026-02-28")
+    result = evaluate_hypothesis(
+        definition(operation="growth", variables=("current", "prior"), target="0.2"),
+        {"current": current, "prior": prior}, as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("must end before" in item for item in result.reasons)

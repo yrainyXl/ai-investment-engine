@@ -22,7 +22,8 @@ def variable(variable_id, value, *, unit="CNY", start="2026-01-01", end="2026-09
         period_type=period_type, period_start=start, period_end=end,
         source_id=f"source:{variable_id}", published_at=published,
         effective_at=effective, retrieved_at=retrieved,
-        reviewed_by_human=reviewed, unit_verified=unit_verified,
+        reviewed_by_human=reviewed, reviewed_at="2026-10-30T09:00:00+08:00" if reviewed else None,
+        unit_verified=unit_verified,
         scope_verified=scope_verified,
     )
 

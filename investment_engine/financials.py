@@ -417,6 +417,18 @@ class FinancialFactStore:
                 and visible and review_visible
             )
             value["eligible_for_assessment"] = eligible
+            # Historical queries must not expose later human-review metadata
+            # as if it existed at the requested as_of.
+            if as_of is not None and not review_visible:
+                value.update({
+                    "reviewed_by_human": False,
+                    "unit_verified": False,
+                    "scope_verified": False,
+                    "reviewed_at": None,
+                    "reviewer_id": None,
+                    "review_note": None,
+                    "extraction_status": "machine_extracted_pending_human_review",
+                })
             if not visible:
                 reason = "source was not published and retrieved by as_of"
             elif not item.get("reviewed_by_human") or not item.get("unit_verified") or not item.get("scope_verified"):

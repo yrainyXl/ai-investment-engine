@@ -78,7 +78,7 @@ def test_unverified_unit_or_scope_is_not_evaluable(flag, reason):
 def test_publication_after_as_of_is_not_evaluable():
     result = evaluate_hypothesis(
         definition(), {
-            "numerator": variable("numerator", "25", published="2026-11-10T09:00:00+08:00"),
+            "numerator": variable("numerator", "25", published="2026-11-09T14:00:00+08:00"),
             "denominator": variable("denominator", "100"),
         }, as_of=AS_OF,
     )
@@ -242,7 +242,7 @@ def test_review_completed_after_as_of_is_not_used_in_historical_evaluation():
     result = evaluate_hypothesis(
         definition(),
         {
-            "numerator": variable("numerator", "25", reviewed_at="2026-11-10T09:00:00+08:00"),
+            "numerator": variable("numerator", "25", reviewed_at="2026-11-09T14:00:00+08:00"),
             "denominator": variable("denominator", "100"),
         },
         as_of=AS_OF,

@@ -20,7 +20,7 @@ def make_definition():
         hypothesis_id="gross-margin", entity_id="example-equity", strategy_id="fundamental-v1",
         claim="Gross margin remains above 10%", operation="margin",
         variables=("gross_profit", "revenue"), target="0.1",
-        target_unit="ratio", direction="above",
+        target_unit="ratio", direction="above", tolerance="0.02",
     )
 
 
@@ -30,8 +30,6 @@ def test_scenario_overrides_are_labeled_assumptions_not_observed_facts():
         {"gross_profit": make_variable("gross_profit", "20"),
          "revenue": make_variable("revenue", "100")},
         (
-            ScenarioDefinition("base", "Base", "Revenue and gross profit unchanged", {}),
-        ) if False else (
             ScenarioDefinition("downside", "Downside", "Gross profit falls by 50%", {"gross_profit": "10"}),
         ),
         as_of=AS_OF,

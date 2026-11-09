@@ -179,3 +179,39 @@ def test_pdf_provider_uses_text_pages_and_never_approves(monkeypatch):
 def test_compact_preserves_numeric_column_boundaries():
     normalized = _compact("营业收入 23,762,244,302.46 30,574,470,082.36")
     assert NUMBER_RE.findall(normalized) == ["23,762,244,302.46", "30,574,470,082.36"]
+
+
+def test_financial_fact_review_is_explicit_and_does_not_assess_thesis(tmp_path):
+    store = FinancialFactStore(tmp_path)
+    facts = parsed_facts()
+    store.save(facts)
+    target = next(item for item in facts if item.metric == "revenue" and item.period_type == "quarter")
+    reviewed = store.review(
+        target.fact_id, reviewer_id="human-reviewer",
+        review_note="Checked source page, consolidated statement scope and yuan unit.",
+        unit_verified=True, scope_verified=True,
+    )
+    assert reviewed["reviewed_by_human"] is True
+    assert reviewed["unit_verified"] is True
+    assert reviewed["scope_verified"] is True
+    assert reviewed["assessment"] == "unassessed"
+    assert reviewed["value"] == target.value
+    assert reviewed["reviewer_id"] == "human-reviewer"
+    as_of = datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)
+    listed = next(item for item in store.list(symbol="601118", as_of=as_of) if item["fact_id"] == target.fact_id)
+    assert listed["eligible_for_assessment"] is True
+    assert "ready for hypothesis assessment" in listed["eligibility_reason"]
+
+
+def test_financial_fact_review_rejects_unknown_fact_and_missing_note(tmp_path):
+    from investment_engine.evidence import EvidenceError
+
+    store = FinancialFactStore(tmp_path)
+    with pytest.raises(EvidenceError, match="not found"):
+        store.review("missing", reviewer_id="reviewer", review_note="checked",
+                     unit_verified=True, scope_verified=True)
+    store.save(parsed_facts())
+    target = parsed_facts()[0]
+    with pytest.raises(EvidenceError, match="reviewer_id and review_note"):
+        store.review(target.fact_id, reviewer_id="", review_note="",
+                     unit_verified=True, scope_verified=True)

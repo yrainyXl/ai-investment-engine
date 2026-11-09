@@ -8,7 +8,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
@@ -19,8 +19,10 @@ from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
 from .research import build_research_snapshot
 from .report_store import ReportStore
+from .hypotheses import HypothesisDefinition, HypothesisError, HypothesisVariable, evaluate_hypothesis
+from .scenarios import ScenarioDefinition, evaluate_scenarios
 
-app = FastAPI(title="AI Investment Engine", version="0.4.0")
+app = FastAPI(title="AI Investment Engine", version="0.5.0")
 
 
 class PreviewRequest(BaseModel):
@@ -57,6 +59,56 @@ class ResearchRequest(BaseModel):
     evidence: dict[str, Any] | None = None
 
 
+class HypothesisDefinitionPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    hypothesis_id: str = Field(min_length=1, max_length=128)
+    entity_id: str = Field(min_length=1, max_length=128)
+    strategy_id: str = Field(min_length=1, max_length=128)
+    claim: str = Field(min_length=1, max_length=2000)
+    operation: Literal["sum", "difference", "product", "ratio", "growth", "margin", "weighted_sum"]
+    variables: list[str] = Field(min_length=1, max_length=32)
+    target: str
+    target_unit: str = Field(min_length=1, max_length=64)
+    direction: Literal["above", "below", "equal"]
+    tolerance: str = "0"
+    weights: list[str] = Field(default_factory=list)
+    max_age_days: int | None = Field(default=None, ge=0, le=36500)
+
+
+class HypothesisFactReferencePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    variable_id: str = Field(min_length=1, max_length=128)
+    fact_id: str = Field(min_length=1, max_length=128)
+
+
+class FinancialFactReviewPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reviewer_id: str = Field(min_length=1, max_length=128)
+    review_note: str = Field(min_length=1, max_length=2000)
+    unit_verified: bool
+    scope_verified: bool
+    confirm_source_checked: bool = False
+
+
+class ScenarioDefinitionPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scenario_id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(min_length=1, max_length=2000)
+    overrides: dict[str, str]
+
+
+class HypothesisEvaluationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    hypothesis: HypothesisDefinitionPayload
+    fact_refs: list[HypothesisFactReferencePayload] = Field(min_length=1, max_length=32)
+    as_of: str | None = None
+
+
+class HypothesisScenariosRequest(HypothesisEvaluationRequest):
+    scenarios: list[ScenarioDefinitionPayload] = Field(min_length=1, max_length=20)
+
+
 def _authorize(authorization: str | None, *, otw_access: bool = False) -> None:
     configured_token = os.getenv("ENGINE_API_TOKEN", "")
     if not configured_token:
@@ -81,6 +133,38 @@ def _reports() -> ReportStore:
     return ReportStore(os.getenv("ENGINE_DATA_DIR", "data"))
 
 
+def _resolve_financial_fact_refs(fact_refs, *, entity_id: str, as_of: datetime):
+    store = FinancialFactStore(os.getenv("ENGINE_DATA_DIR", "data"))
+    resolved = {}
+    for ref in fact_refs:
+        if ref.variable_id in resolved:
+            raise HypothesisError(f"duplicate variable_id: {ref.variable_id}")
+        fact = store.get_by_id(ref.fact_id, as_of=as_of)
+        if fact is None:
+            raise HypothesisError(f"financial fact not found or not visible as of: {ref.fact_id}")
+        if str(fact.get("symbol")) != entity_id:
+            raise HypothesisError(f"fact {ref.fact_id} belongs to a different entity")
+        period_end = str(fact["period_end"])
+        resolved[ref.variable_id] = HypothesisVariable(
+            variable_id=ref.variable_id,
+            metric_id=str(fact["metric"]),
+            value=str(fact["value"]),
+            unit=str(fact["currency"]),
+            period_type=str(fact["period_type"]),
+            period_start=str(fact["period_start"]),
+            period_end=period_end,
+            source_id=str(fact["fact_id"]),
+            published_at=str(fact["published_at"]),
+            effective_at=f"{period_end}T23:59:59+08:00",
+            retrieved_at=str(fact["retrieved_at"]),
+            reviewed_by_human=fact.get("reviewed_by_human") is True,
+            reviewed_at=fact.get("reviewed_at"),
+            unit_verified=fact.get("unit_verified") is True,
+            scope_verified=fact.get("scope_verified") is True,
+        )
+    return resolved
+
+
 def _as_of(value: str | None) -> datetime:
     parsed = parse_time(value) if value else datetime.now(ZoneInfo('Asia/Shanghai'))
     if parsed is None or parsed.tzinfo is None:
@@ -92,7 +176,7 @@ def _as_of(value: str | None) -> datetime:
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.4.0"}
+    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.5.0"}
 
 
 @app.get("/v1/strategies")
@@ -295,6 +379,81 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
         return report
     except OTWError as exc:
         raise HTTPException(422, "OTW research context unavailable") from exc
+
+
+@app.post("/v1/fundamentals/facts/{fact_id}/review")
+def review_financial_fact_endpoint(fact_id: str, req: FinancialFactReviewPayload,
+                                   authorization: str | None = Header(default=None)):
+    """Record an explicit human review; never called by scheduled ingestion or analysis."""
+    _authorize(authorization)
+    if not req.confirm_source_checked:
+        raise HTTPException(400, "Explicit source-review confirmation is required")
+    try:
+        reviewed = FinancialFactStore(os.getenv("ENGINE_DATA_DIR", "data")).review(
+            fact_id, reviewer_id=req.reviewer_id, review_note=req.review_note,
+            unit_verified=req.unit_verified, scope_verified=req.scope_verified,
+        )
+        saved = _reports().save("fact_review", "manual_review", {
+            "fact_id": fact_id, "reviewer_id": req.reviewer_id,
+            "review_note": req.review_note, "unit_verified": req.unit_verified,
+            "scope_verified": req.scope_verified, "assessment": "unassessed",
+        })
+        return {
+            "fact": {key: reviewed.get(key) for key in (
+                "fact_id", "symbol", "metric", "value", "unit", "period_label",
+                "statement_scope", "reviewed_by_human", "unit_verified",
+                "scope_verified", "reviewed_at", "reviewer_id", "assessment",
+            )},
+            "report": saved,
+            "note": "Review does not automatically mark the fact as supporting or contradicting any thesis.",
+        }
+    except EvidenceError as exc:
+        raise HTTPException(404 if "not found" in str(exc) else 422, str(exc)) from exc
+
+
+@app.post("/v1/hypotheses/evaluate")
+def evaluate_hypothesis_endpoint(req: HypothesisEvaluationRequest,
+                                 authorization: str | None = Header(default=None)):
+    """Evaluate only facts resolved from the local evidence store; persist a local audit report."""
+    _authorize(authorization)
+    as_of = _as_of(req.as_of)
+    try:
+        definition_data = req.hypothesis.model_dump()
+        definition_data["variables"] = tuple(definition_data["variables"])
+        definition_data["weights"] = tuple(definition_data["weights"])
+        definition = HypothesisDefinition(**definition_data)
+        inputs = _resolve_financial_fact_refs(
+            req.fact_refs, entity_id=definition.entity_id, as_of=as_of,
+        )
+        result = evaluate_hypothesis(definition, inputs, as_of=as_of.isoformat())
+        saved = _reports().save("hypothesis", "evaluation", result.to_dict())
+        return {"evaluation": result.to_dict(), "report": saved,
+                "side_effects": "local_audit_report_only", "orders_enabled": False}
+    except HypothesisError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/v1/hypotheses/scenarios")
+def evaluate_hypothesis_scenarios_endpoint(req: HypothesisScenariosRequest,
+                                           authorization: str | None = Header(default=None)):
+    """Compare local reviewed facts with explicit what-if assumptions; facts are never overwritten."""
+    _authorize(authorization)
+    as_of = _as_of(req.as_of)
+    try:
+        definition_data = req.hypothesis.model_dump()
+        definition_data["variables"] = tuple(definition_data["variables"])
+        definition_data["weights"] = tuple(definition_data["weights"])
+        definition = HypothesisDefinition(**definition_data)
+        inputs = _resolve_financial_fact_refs(
+            req.fact_refs, entity_id=definition.entity_id, as_of=as_of,
+        )
+        scenarios = tuple(ScenarioDefinition(**item.model_dump()) for item in req.scenarios)
+        result = evaluate_scenarios(definition, inputs, scenarios, as_of=as_of.isoformat())
+        saved = _reports().save("scenario", "evaluation", result.to_dict())
+        return {"scenarios": result.to_dict(), "report": saved,
+                "side_effects": "local_audit_report_only", "orders_enabled": False}
+    except HypothesisError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/v1/reports")

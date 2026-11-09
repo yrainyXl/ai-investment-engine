@@ -35,6 +35,7 @@ class HypothesisVariable:
     effective_at: str
     retrieved_at: str
     reviewed_by_human: bool = False
+    reviewed_at: str | None = None
     unit_verified: bool = False
     scope_verified: bool = False
     input_kind: Literal["observed", "scenario_assumption"] = "observed"
@@ -55,6 +56,10 @@ class HypothesisVariable:
             raise HypothesisError(f"{self.variable_id}: period_end precedes period_start")
         for name in ("published_at", "effective_at", "retrieved_at"):
             _timestamp(getattr(self, name), f"{self.variable_id}.{name}")
+        if self.reviewed_at is not None:
+            _timestamp(self.reviewed_at, f"{self.variable_id}.reviewed_at")
+        if self.reviewed_by_human and self.input_kind == "observed" and not self.reviewed_at:
+            raise HypothesisError(f"{self.variable_id}: reviewed_at is required for human-reviewed observations")
 
 
 @dataclass(frozen=True)
@@ -148,8 +153,13 @@ def evaluate_hypothesis(
             reasons.append(f"{key}: unit is not verified")
         if not item.scope_verified:
             reasons.append(f"{key}: statistical scope is not verified")
-        if definition.require_human_review and item.input_kind == "observed" and not item.reviewed_by_human:
-            reasons.append(f"{key}: human review is pending")
+        if definition.require_human_review and item.input_kind == "observed":
+            if not item.reviewed_by_human:
+                reasons.append(f"{key}: human review is pending")
+            elif not item.reviewed_at:
+                reasons.append(f"{key}: human review timestamp is missing")
+            elif _timestamp(item.reviewed_at, f"{key}.reviewed_at") > cutoff:
+                reasons.append(f"{key}: human review occurred after as_of")
         for field in ("published_at", "effective_at", "retrieved_at"):
             if _timestamp(getattr(item, field), f"{key}.{field}") > cutoff:
                 reasons.append(f"{key}: {field} is after as_of")

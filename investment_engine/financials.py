@@ -387,7 +387,6 @@ class FinancialFactStore:
                 value.get("reviewed_by_human") is True
                 and value.get("unit_verified") is True
                 and value.get("scope_verified") is True
-                and value.get("assessment") in {"supporting", "contradicting"}
                 and visible
             )
             value["eligible_for_assessment"] = eligible
@@ -395,7 +394,9 @@ class FinancialFactStore:
                 "eligible after human review and point-in-time checks" if eligible else
                 "machine extraction requires human verification of statement scope, row mapping, unit and period"
                 if not item.get("reviewed_by_human") or not item.get("unit_verified") or not item.get("scope_verified") else
-                "financial fact needs an explicit supporting/contradicting thesis assessment"
+                "ready for hypothesis assessment; no thesis evaluation has been recorded yet"
+                if item.get("assessment") == "unassessed" else
+                "eligible for hypothesis assessment; a prior thesis assessment exists"
             )
             output.append(value)
         return output[-limit:]

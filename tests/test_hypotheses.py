@@ -236,3 +236,16 @@ def test_arbitrary_expression_is_not_an_allowed_operation():
             operation="__import__('os').system('id')", variables=("a",),
             target="0", target_unit="CNY", direction="above",
         ).validate()
+
+
+def test_review_completed_after_as_of_is_not_used_in_historical_evaluation():
+    result = evaluate_hypothesis(
+        definition(),
+        {
+            "numerator": variable("numerator", "25", reviewed_at="2026-11-10T09:00:00+08:00"),
+            "denominator": variable("denominator", "100"),
+        },
+        as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("human review occurred after as_of" in item for item in result.reasons)

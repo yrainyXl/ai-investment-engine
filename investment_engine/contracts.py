@@ -168,6 +168,7 @@ def company_financial_from_fact(fact: Any) -> CompanyFinancials:
         fact.validate()
     reviewed = (
         getattr(fact, "reviewed_by_human", False) is True
+        and bool(getattr(fact, "reviewed_at", None))
         and getattr(fact, "unit_verified", False) is True
         and getattr(fact, "scope_verified", False) is True
     )

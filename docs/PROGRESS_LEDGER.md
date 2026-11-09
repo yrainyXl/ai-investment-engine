@@ -271,3 +271,12 @@ DSH 实际状态：
 - 修复数据重新同步覆盖人工审核问题：相同 source/值/单位/期间/行标签/范围时保留审核记录与首次抓取时间，来源/字段映射变化则需重新审核。历史 as_of 查询屏蔽未来人工复核状态。
 - 修复 CI 暴露的 DCF 时间校验未定义变量、测试假设时间戳和必填字段缺失；补充回归测试。
 - DSH 部署任务文档：`docs/M4_DEPLOY_TASK.md`。**此时尚未部署 v0.5**，不得把 PR 或 CI 状态写成服务器真实状态。验收要求未经审核的 13 条 Q3 财务事实仍不可评估；禁止自动 review、OTW 写入、下单、创建调度。
+
+
+## 二十六、2026-11-09 M4 PR #13 合并与 DSH 部署任务
+
+- PR #13 已通过 GitHub Actions（head `31c51886e9311e81d59c9f73656fc642017f8a15`，CI run #379 success）并以 squash 合并至 main：`49ac8cd24d85589ea3717eb438b4d8c3a71f6a0e`。
+- 目标版本 v0.5.0（`ai-investment-engine:0.5`）。已引入确定性假设计算、财务事实来源引用、显式人工审核与独立审查 token、what-if 场景、估值纯函数以及本地审计报告。
+- 重大安全边界：`ENGINE_FACT_REVIEW_TOKEN` 不配置时审核接口禁用，不能与 `ENGINE_API_TOKEN` 相同；研究 API 不能通过请求体自行声明事实已经人工审核。未来数据与未来复核状态不能用于历史 as_of 评估。
+- 已向 DSH 会话 `session-codex-ai-engine-m0-session-20261107-v1` 发出部署验收任务 `ai-engine-m4-v05-deploy-49ac8cd2-20261109-v1`，请求受理；**等待 DSH 实际回传，不得把 accepted 当成 deployed**。
+- DSH 仅获准按 `docs/M4_DEPLOY_TASK.md` 在 clean 工作树上 fast-forward 精确 SHA、更新 engine 容器、只读检查已有数据和对未审核的 13 条财报做 not_evaluable 验收，不得修改 .env、不自动审批、不重抓行情/财报、不执行 OTW 写入或任何交易。

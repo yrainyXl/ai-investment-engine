@@ -215,3 +215,42 @@ def test_financial_fact_review_rejects_unknown_fact_and_missing_note(tmp_path):
     with pytest.raises(EvidenceError, match="reviewer_id and review_note"):
         store.review(target.fact_id, reviewer_id="", review_note="",
                      unit_verified=True, scope_verified=True)
+
+
+def test_reingestion_preserves_review_only_when_provenance_is_identical(tmp_path):
+    from dataclasses import replace
+
+    store = FinancialFactStore(tmp_path)
+    facts = parsed_facts()
+    store.save(facts)
+    target = facts[0]
+    store.review(
+        target.fact_id, reviewer_id="human-reviewer",
+        review_note="Compared with original financial statement page",
+        unit_verified=True, scope_verified=True,
+    )
+    # Provider downloads the same report again: preserve the approval and
+    # earliest retrieval time, so historical as-of behavior does not drift.
+    later = replace(target, retrieved_at="2026-11-09T16:00:00+08:00")
+    store.save([later])
+    values = {x["fact_id"]: x for x in store._read()}
+    assert values[target.fact_id]["reviewed_by_human"] is True
+    assert values[target.fact_id]["reviewer_id"] == "human-reviewer"
+    assert values[target.fact_id]["retrieved_at"] == target.retrieved_at
+
+    # A changed source row mapping with the same value is NOT auto-approved.
+    changed = replace(target, source_label="different reported line")
+    store.save([changed])
+    values = {x["fact_id"]: x for x in store._read()}
+    assert values[target.fact_id]["reviewed_by_human"] is False
+    assert values[target.fact_id]["scope_verified"] is False
+
+
+def test_provider_cannot_inject_manually_verified_fact(tmp_path):
+    from dataclasses import replace
+    from investment_engine.evidence import EvidenceError
+
+    store = FinancialFactStore(tmp_path)
+    target = parsed_facts()[0]
+    with pytest.raises(EvidenceError, match="cannot directly approve"):
+        store.save([replace(target, reviewed_by_human=True, unit_verified=True)])

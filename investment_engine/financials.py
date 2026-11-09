@@ -383,17 +383,21 @@ class FinancialFactStore:
                 continue
             value = dict(item)
             value["visible_as_of"] = visible if as_of is not None else None
+            reviewed_at = _parse_aware(value.get("reviewed_at"))
+            review_visible = bool(reviewed_at and as_of and reviewed_at <= as_of)
             eligible = bool(
                 value.get("reviewed_by_human") is True
                 and value.get("unit_verified") is True
                 and value.get("scope_verified") is True
-                and visible
+                and visible and review_visible
             )
             value["eligible_for_assessment"] = eligible
             if not visible:
                 reason = "source was not published and retrieved by as_of"
             elif not item.get("reviewed_by_human") or not item.get("unit_verified") or not item.get("scope_verified"):
                 reason = "machine extraction requires human verification of statement scope, row mapping, unit and period"
+            elif not review_visible:
+                reason = "human review was not completed by as_of"
             elif item.get("assessment") == "unassessed":
                 reason = "ready for hypothesis assessment; no thesis evaluation has been recorded yet"
             else:

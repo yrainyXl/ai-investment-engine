@@ -20,7 +20,7 @@ M4 建立可复现的确定性计算层，把投资 thesis 拆成可验证变量
 - scope_verified=false
 - assessment=unassessed
 
-通过 POST /v1/fundamentals/facts/{fact_id}/review 才能记录人工审核。请求要求 reviewer、review_note、unit_verified、scope_verified 和 confirm_source_checked=true。审核会写入 reviewer、reviewed_at 和审计报告，但不改变提取数值、原始来源或 thesis assessment。
+通过 POST /v1/fundamentals/facts/{fact_id}/review 才能记录人工审核。该端点还要求 X-Fact-Review-Token（独立 ENGINE_FACT_REVIEW_TOKEN，且不得等于 ENGINE_API_TOKEN）。默认未配置时返回 503，DSH/自动 Agent 不得代替人工审核。请求要求 reviewer、review_note、unit_verified、scope_verified 和 confirm_source_checked=true。审核会写入 reviewer、reviewed_at 和审计报告，但不改变提取数值、原始来源或 thesis assessment。
 
 审核时间也受 point-in-time 约束：若 reviewed_at > as_of，历史评估不能使用该事实。只要单位或报表范围未确认，事实仍不可用于量化假设验证。
 

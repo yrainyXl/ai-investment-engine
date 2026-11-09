@@ -245,3 +245,18 @@ DSH 实际状态：
 - 任务严格要求先检查工作树，再 fetch 并验证 SHA；只有网络和 fast-forward 前置条件通过才允许重建 engine。若 fetch 超时必须停止，不修改服务器。
 - 任务获准的公开数据同步仅包括 CNINFO 公告元数据、99qh 库存（范围未知）和 2026-Q3 财报 PDF；全部只写本地 `/data/evidence`。不触碰 OTW、订单、调度、账户、策略、权限或其他服务。
 - 当前不得将任务 accepted / running 视为部署完成；实际部署 SHA、健康检查和数据文件结果以 DSH 终态回执为准。
+
+
+## 二十四、2026-11-09 M4 假设验证与估值基础（开发中）
+
+- 已确认 v0.4.0 主体部署和 Q3 财报事实同步成功：目标部署 SHA `f471aa11a2811d13a49f24a76b28354eb781dc35`；`financial_facts.json` 共 13 条，全部仍为机器提取待人工审核。服务器数据没有自动批准。
+- 新建分支 `feat/m4-hypothesis-evaluator`，基于 v0.4.0 开始 M4；当前最新分支 SHA `6f0ea2a5840944c29e8ef314820cbbe72f0fbe2d`（后续提交会继续更新）。
+- 已新增确定性 HypothesisDefinition / HypothesisVariable / EvaluationResult 契约与安全运算：sum、difference、product、ratio、margin、growth、weighted_sum；使用 Decimal，不执行 eval。
+- 已实现 point-in-time 约束：发布日期、生效时间、抓取时间、人工审核时间均不能晚于 as_of；检查单位、统计口径、审核状态、期间一致性、YTD/季度混用、增长期间长度、缺失输入和零分母。
+- 已实现 what-if 场景分析，所有覆盖值显式标记为 `scenario_assumption`，不会修改原始事实。
+- 新增财务事实人工审核写入流程：必须显式确认已核对来源，记录 reviewer、review_note、reviewed_at、unit_verified、scope_verified；审核不会自动把 assessment 改成 supporting/contradicting。
+- 假设评估 API 改为只接受 fact_id 引用，从本地 FinancialFactStore 解析真实值和可信审核标记；不接受调用方自行声明 reviewed/unit/scope，避免 AI 通过请求体伪造数据质量状态。
+- 新增纯计算估值库：已审核每股指标倍数法、DCF、WACC/terminal growth 敏感性分析；尚未接入 HTTP API 或财务事实 resolver，不能视为已形成完整估值数据链。
+- 新增 M4 单元测试与 API 测试，待 GitHub Actions CI 运行。当前未创建 PR、未合并 main、未部署服务器；没有修改 OTW 数据/权限、订单或调度。
+- 当前 M4 API 的假设输入首批仅接公司财务事实（CNINFO）；基金、ETF、行业和宏观指标需后续 provider-neutral resolver 扩展。研究 Agent、反方 Agent、风险引擎、仓位模型和完整交易闭环仍未实现。
+- 设计文档：`docs/M4_HYPOTHESIS_AND_VALUATION.md`。

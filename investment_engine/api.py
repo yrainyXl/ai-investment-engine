@@ -71,7 +71,6 @@ class HypothesisDefinitionPayload(BaseModel):
     direction: Literal["above", "below", "equal"]
     tolerance: str = "0"
     weights: list[str] = Field(default_factory=list)
-    require_human_review: bool = True
     max_age_days: int | None = Field(default=None, ge=0, le=36500)
 
 

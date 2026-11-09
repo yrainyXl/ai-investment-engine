@@ -254,3 +254,22 @@ def test_provider_cannot_inject_manually_verified_fact(tmp_path):
     target = parsed_facts()[0]
     with pytest.raises(EvidenceError, match="cannot directly approve"):
         store.save([replace(target, reviewed_by_human=True, unit_verified=True)])
+
+
+def test_historical_fact_query_does_not_expose_future_human_review(tmp_path):
+    store = FinancialFactStore(tmp_path)
+    facts = parsed_facts()
+    store.save(facts)
+    target = facts[0]
+    store.review(target.fact_id, reviewer_id="reviewer", review_note="Checked source page",
+                 unit_verified=True, scope_verified=True)
+    # The fact existed on this historical date, but its later review did not.
+    historical = datetime(2026, 11, 8, 12, 0, tzinfo=timezone.utc)
+    item = next(x for x in store.list(symbol="601118", as_of=historical)
+                if x["fact_id"] == target.fact_id)
+    assert item["visible_as_of"] is True
+    assert item["reviewed_by_human"] is False
+    assert item["unit_verified"] is False
+    assert item["scope_verified"] is False
+    assert item["reviewed_at"] is None
+    assert item["eligible_for_assessment"] is False

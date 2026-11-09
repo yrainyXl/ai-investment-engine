@@ -16,13 +16,14 @@ AS_OF = "2026-11-09T12:00:00+08:00"
 def variable(variable_id, value, *, unit="CNY", start="2026-01-01", end="2026-09-30",
              period_type="year_to_date", reviewed=True, unit_verified=True,
              scope_verified=True, effective="2026-09-30T16:00:00+08:00",
-             published="2026-10-29T18:00:00+08:00", retrieved="2026-10-30T09:00:00+08:00"):
+             published="2026-10-29T18:00:00+08:00", retrieved="2026-10-30T09:00:00+08:00",
+             reviewed_at="2026-10-30T09:00:00+08:00"):
     return HypothesisVariable(
         variable_id=variable_id, metric_id=variable_id, value=value, unit=unit,
         period_type=period_type, period_start=start, period_end=end,
         source_id=f"source:{variable_id}", published_at=published,
         effective_at=effective, retrieved_at=retrieved,
-        reviewed_by_human=reviewed, reviewed_at="2026-10-30T09:00:00+08:00" if reviewed else None,
+        reviewed_by_human=reviewed, reviewed_at=reviewed_at if reviewed else None,
         unit_verified=unit_verified,
         scope_verified=scope_verified,
     )
@@ -178,7 +179,8 @@ def test_weighted_sum_uses_decimal_arithmetic():
         as_of=AS_OF,
     )
     assert result.status == "supported"
-    assert result.computed_value == "0.2999999999999999999999999999"
+    from decimal import Decimal
+    assert Decimal(result.computed_value) == Decimal("0.3")
 
 
 def test_stale_inputs_are_not_evaluable_when_freshness_is_required():

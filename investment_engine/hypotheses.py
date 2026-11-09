@@ -37,6 +37,7 @@ class HypothesisVariable:
     reviewed_by_human: bool = False
     unit_verified: bool = False
     scope_verified: bool = False
+    input_kind: Literal["observed", "scenario_assumption"] = "observed"
 
     def validate(self) -> None:
         required = (
@@ -45,6 +46,8 @@ class HypothesisVariable:
         )
         if any(not str(item).strip() for item in required):
             raise HypothesisError("variable identity, unit, period type and provenance are required")
+        if self.input_kind not in {"observed", "scenario_assumption"}:
+            raise HypothesisError("unsupported input_kind")
         _decimal(self.value, f"{self.variable_id}.value")
         _date(self.period_start, f"{self.variable_id}.period_start")
         _date(self.period_end, f"{self.variable_id}.period_end")
@@ -111,6 +114,7 @@ class EvaluationResult:
     result_unit: str | None
     input_values: dict[str, str]
     input_source_ids: tuple[str, ...]
+    input_kinds: dict[str, str]
     period_start: str | None
     period_end: str | None
     reasons: tuple[str, ...]
@@ -144,7 +148,7 @@ def evaluate_hypothesis(
             reasons.append(f"{key}: unit is not verified")
         if not item.scope_verified:
             reasons.append(f"{key}: statistical scope is not verified")
-        if definition.require_human_review and not item.reviewed_by_human:
+        if definition.require_human_review and item.input_kind == "observed" and not item.reviewed_by_human:
             reasons.append(f"{key}: human review is pending")
         for field in ("published_at", "effective_at", "retrieved_at"):
             if _timestamp(getattr(item, field), f"{key}.{field}") > cutoff:
@@ -278,6 +282,7 @@ def _result(
         tolerance=definition.tolerance, result_unit=result_unit,
         input_values={x.variable_id: x.value for x in selected},
         input_source_ids=tuple(x.source_id for x in selected),
+        input_kinds={x.variable_id: x.input_kind for x in selected},
         period_start=period_start, period_end=period_end, reasons=reasons, as_of=as_of,
     )
 

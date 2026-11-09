@@ -85,7 +85,7 @@ def test_hypothesis_endpoint_resolves_reviewed_local_facts_and_persists_report(m
     assert client.get("/v1/reports?kind=hypothesis", headers=TOKEN).json()["reports"][0]["kind"] == "hypothesis"
 
 
-def test_hypothesis_endpoint_does_not_trust_caller_review_flags(monkeypatch, tmp_path):
+def test_hypothesis_endpoint_keeps_unreviewed_facts_ineligible_and_rejects_spoofed_flags(monkeypatch, tmp_path):
     monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
     monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
     facts = seed_facts(tmp_path, reviewed=False)

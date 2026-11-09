@@ -74,7 +74,7 @@ class HypothesisDefinitionPayload(BaseModel):
     target_unit: str = Field(min_length=1, max_length=64)
     direction: Literal["above", "below", "equal"]
     tolerance: str = "0"
-    weights: list[str] = []
+    weights: list[str] = Field(default_factory=list)
     require_human_review: bool = True
     max_age_days: int | None = Field(default=None, ge=0, le=36500)
 
@@ -114,8 +114,38 @@ class HypothesisScenariosRequest(HypothesisEvaluationRequest):
     scenarios: list[ScenarioDefinitionPayload] = Field(min_length=1, max_length=20)
 
 
+class ValuationMetricPayload(BaseModel):
+    metric_id: str = Field(min_length=1, max_length=128)
+    value: str
+    unit: str = Field(min_length=1, max_length=64)
+    period_end: str
+    source_id: str = Field(min_length=1, max_length=512)
+    published_at: str
+    effective_at: str
+    retrieved_at: str
+    reviewed_by_human: bool = False
+    unit_verified: bool = False
+    scope_verified: bool = False
+
+
+class DCFInputPayload(BaseModel):
+    entity_id: str = Field(min_length=1, max_length=128)
+    currency: str = Field(min_length=3, max_length=3)
+    forecast_fcf: list[str] = Field(min_length=1, max_length=30)
+    discount_rate: str
+    terminal_growth: str
+    net_debt: str
+    shares_outstanding: str
+    net_debt_source_id: str = Field(min_length=1, max_length=512)
+    shares_source_id: str = Field(min_length=1, max_length=512)
+    assumptions_reviewed_by_human: bool = False
+    source_facts_reviewed_by_human: bool = False
+    unit_verified: bool = False
+    scope_verified: bool = False
+
+
 class MultipleValuationRequest(BaseModel):
-    metric: dict[str, Any]
+    metric: ValuationMetricPayload
     multiple_name: str = Field(min_length=1, max_length=32)
     multiple: str
     as_of: str | None = None
@@ -123,7 +153,7 @@ class MultipleValuationRequest(BaseModel):
 
 
 class DCFValuationRequest(BaseModel):
-    model: dict[str, Any]
+    model: DCFInputPayload
     as_of: str | None = None
     sensitivity_discount_rates: list[str] = Field(default_factory=list, max_length=20)
     sensitivity_terminal_growth_rates: list[str] = Field(default_factory=list, max_length=20)
@@ -416,7 +446,7 @@ def calculate_multiple_valuation_endpoint(req: MultipleValuationRequest,
     _authorize(authorization)
     as_of = _as_of(req.as_of).isoformat()
     try:
-        metric = ValuationMetric(**req.metric)
+        metric = ValuationMetric(**req.metric.model_dump())
         result = calculate_multiple_valuation(
             metric, multiple_name=req.multiple_name, multiple=req.multiple,
             as_of=as_of, require_human_review=req.require_human_review,
@@ -434,7 +464,7 @@ def calculate_dcf_endpoint(req: DCFValuationRequest,
     _authorize(authorization)
     as_of = _as_of(req.as_of).isoformat()
     try:
-        model = DCFInput(**req.model)
+        model = DCFInput(**req.model.model_dump())
         result = calculate_dcf(model, as_of=as_of)
         sensitivity = []
         if req.sensitivity_discount_rates or req.sensitivity_terminal_growth_rates:

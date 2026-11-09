@@ -22,7 +22,7 @@ from .report_store import ReportStore
 from .hypotheses import HypothesisDefinition, HypothesisError, HypothesisVariable, evaluate_hypothesis
 from .scenarios import ScenarioDefinition, evaluate_scenarios
 
-app = FastAPI(title="AI Investment Engine", version="0.4.0")
+app = FastAPI(title="AI Investment Engine", version="0.5.0")
 
 
 class PreviewRequest(BaseModel):
@@ -176,7 +176,7 @@ def _as_of(value: str | None) -> datetime:
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.4.0"}
+    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.5.0"}
 
 
 @app.get("/v1/strategies")

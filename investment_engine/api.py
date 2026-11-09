@@ -406,7 +406,10 @@ def evaluate_hypothesis_endpoint(req: HypothesisEvaluationRequest,
     _authorize(authorization)
     as_of = _as_of(req.as_of).isoformat()
     try:
-        definition = HypothesisDefinition(**req.hypothesis.model_dump())
+        definition_data = req.hypothesis.model_dump()
+        definition_data["variables"] = tuple(definition_data["variables"])
+        definition_data["weights"] = tuple(definition_data["weights"])
+        definition = HypothesisDefinition(**definition_data)
         items = [HypothesisVariable(**item.model_dump()) for item in req.variables]
         inputs = {item.variable_id: item for item in items}
         if len(inputs) != len(items):
@@ -464,7 +467,9 @@ def calculate_dcf_endpoint(req: DCFValuationRequest,
     _authorize(authorization)
     as_of = _as_of(req.as_of).isoformat()
     try:
-        model = DCFInput(**req.model.model_dump())
+        model_data = req.model.model_dump()
+        model_data["forecast_fcf"] = tuple(model_data["forecast_fcf"])
+        model = DCFInput(**model_data)
         result = calculate_dcf(model, as_of=as_of)
         sensitivity = []
         if req.sensitivity_discount_rates or req.sensitivity_terminal_growth_rates:

@@ -154,7 +154,7 @@ python -m investment_engine.market_cli sync-financials --symbol 601118 --period 
 ## M4 投资假设验证与估值基础
 
 - 假设评估从本地财务事实 store 按 fact_id 解析输入，不接受调用方自报的人工审核/单位/口径状态。
-- 人工复核通过 POST /v1/fundamentals/facts/{fact_id}/review 显式记录；必须确认已检查原始报告，并记录审核人、备注、单位和报表口径状态。复核不会自动判定支持/反驳 thesis。
+- 人工复核通过 POST /v1/fundamentals/facts/{fact_id}/review 显式记录；另需独立的 X-Fact-Review-Token / ENGINE_FACT_REVIEW_TOKEN，默认不配置即禁用，自动 Agent 不得持有。必须确认已检查原始报告，并记录审核人、备注、单位和报表口径状态。复核不会自动判定支持/反驳 thesis。
 - POST /v1/hypotheses/evaluate 执行安全的 Decimal 运算，检查来源时间、reviewed_at、单位、统计口径、报告期间和数据新鲜度。
 - POST /v1/hypotheses/scenarios 运行 baseline 与显式 what-if 假设；覆盖值标记为 scenario_assumption，不会改写事实。
 - investment_engine/valuation.py 提供 PE/PB 类每股倍数计算、DCF 和敏感性分析纯函数；尚未接入 HTTP API/本地事实 resolver。

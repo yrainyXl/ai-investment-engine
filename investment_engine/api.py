@@ -60,6 +60,7 @@ class ResearchRequest(BaseModel):
 
 
 class HypothesisDefinitionPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     hypothesis_id: str = Field(min_length=1, max_length=128)
     entity_id: str = Field(min_length=1, max_length=128)
     strategy_id: str = Field(min_length=1, max_length=128)
@@ -81,6 +82,7 @@ class HypothesisFactReferencePayload(BaseModel):
 
 
 class FinancialFactReviewPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     reviewer_id: str = Field(min_length=1, max_length=128)
     review_note: str = Field(min_length=1, max_length=2000)
     unit_verified: bool
@@ -89,6 +91,7 @@ class FinancialFactReviewPayload(BaseModel):
 
 
 class ScenarioDefinitionPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     scenario_id: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(min_length=1, max_length=2000)
@@ -96,6 +99,7 @@ class ScenarioDefinitionPayload(BaseModel):
 
 
 class HypothesisEvaluationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     hypothesis: HypothesisDefinitionPayload
     fact_refs: list[HypothesisFactReferencePayload] = Field(min_length=1, max_length=32)
     as_of: str | None = None

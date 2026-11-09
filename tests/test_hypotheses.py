@@ -16,13 +16,15 @@ AS_OF = "2026-11-09T12:00:00+08:00"
 def variable(variable_id, value, *, unit="CNY", start="2026-01-01", end="2026-09-30",
              period_type="year_to_date", reviewed=True, unit_verified=True,
              scope_verified=True, effective="2026-09-30T16:00:00+08:00",
-             published="2026-10-29T18:00:00+08:00", retrieved="2026-10-30T09:00:00+08:00"):
+             published="2026-10-29T18:00:00+08:00", retrieved="2026-10-30T09:00:00+08:00",
+             reviewed_at="2026-10-30T09:00:00+08:00"):
     return HypothesisVariable(
         variable_id=variable_id, metric_id=variable_id, value=value, unit=unit,
         period_type=period_type, period_start=start, period_end=end,
         source_id=f"source:{variable_id}", published_at=published,
         effective_at=effective, retrieved_at=retrieved,
-        reviewed_by_human=reviewed, unit_verified=unit_verified,
+        reviewed_by_human=reviewed, reviewed_at=reviewed_at if reviewed else None,
+        unit_verified=unit_verified,
         scope_verified=scope_verified,
     )
 
@@ -77,7 +79,7 @@ def test_unverified_unit_or_scope_is_not_evaluable(flag, reason):
 def test_publication_after_as_of_is_not_evaluable():
     result = evaluate_hypothesis(
         definition(), {
-            "numerator": variable("numerator", "25", published="2026-11-10T09:00:00+08:00"),
+            "numerator": variable("numerator", "25", published="2026-11-09T14:00:00+08:00"),
             "denominator": variable("denominator", "100"),
         }, as_of=AS_OF,
     )
@@ -236,3 +238,27 @@ def test_arbitrary_expression_is_not_an_allowed_operation():
             operation="__import__('os').system('id')", variables=("a",),
             target="0", target_unit="CNY", direction="above",
         ).validate()
+
+
+def test_review_completed_after_as_of_is_not_used_in_historical_evaluation():
+    result = evaluate_hypothesis(
+        definition(),
+        {
+            "numerator": variable("numerator", "25", reviewed_at="2026-11-09T14:00:00+08:00"),
+            "denominator": variable("denominator", "100"),
+        },
+        as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("human review occurred after as_of" in item for item in result.reasons)
+
+
+def test_growth_rejects_overlapping_comparison_periods():
+    current = variable("current", "125", start="2026-01-01", end="2026-09-30")
+    prior = variable("prior", "100", start="2025-06-01", end="2026-02-28")
+    result = evaluate_hypothesis(
+        definition(operation="growth", variables=("current", "prior"), target="0.2"),
+        {"current": current, "prior": prior}, as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("must end before" in item for item in result.reasons)

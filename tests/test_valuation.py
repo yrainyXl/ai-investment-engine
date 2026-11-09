@@ -20,7 +20,8 @@ def reviewed_metric(value="2.5", **overrides):
         "published_at": "2026-10-29T18:00:00+08:00",
         "effective_at": "2026-09-30T16:00:00+08:00",
         "retrieved_at": "2026-10-30T09:00:00+08:00",
-        "reviewed_by_human": True, "unit_verified": True, "scope_verified": True,
+        "reviewed_by_human": True, "reviewed_at": "2026-10-30T09:00:00+08:00",
+        "unit_verified": True, "scope_verified": True,
     }
     values.update(overrides)
     return ValuationMetric(**values)
@@ -41,6 +42,9 @@ def dcf_model(**overrides):
         "shares_effective_at": "2026-09-30T16:00:00+08:00",
         "shares_retrieved_at": "2026-10-30T09:00:00+08:00",
         "assumptions_as_of": "2026-11-09T09:00:00+08:00",
+        "net_debt_reviewed_at": "2026-10-30T09:00:00+08:00",
+        "shares_reviewed_at": "2026-10-30T09:00:00+08:00",
+        "assumptions_reviewed_at": "2026-11-09T09:30:00+08:00",
         "assumptions_reviewed_by_human": True,
         "source_facts_reviewed_by_human": True,
         "unit_verified": True, "scope_verified": True,
@@ -121,3 +125,21 @@ def test_dcf_sensitivity_returns_grid_and_marks_invalid_pairs():
     assert cells[0].status == "calculated"
     assert cells[1].status == "not_evaluable"
     assert cells[1].value_per_share is None
+
+
+def test_multiple_valuation_rejects_review_that_happened_after_as_of():
+    result = calculate_multiple_valuation(
+        reviewed_metric(reviewed_at="2026-11-09T14:00:00+08:00"),
+        multiple_name="PE", multiple="12", as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("reviewed after as_of" in reason for reason in result.reasons)
+
+
+def test_dcf_rejects_source_review_after_as_of():
+    result = calculate_dcf(
+        dcf_model(net_debt_reviewed_at="2026-11-09T14:00:00+08:00"),
+        as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("net_debt_reviewed_at is after as_of" in reason for reason in result.reasons)

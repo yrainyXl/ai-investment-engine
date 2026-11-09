@@ -179,3 +179,97 @@ def test_pdf_provider_uses_text_pages_and_never_approves(monkeypatch):
 def test_compact_preserves_numeric_column_boundaries():
     normalized = _compact("营业收入 23,762,244,302.46 30,574,470,082.36")
     assert NUMBER_RE.findall(normalized) == ["23,762,244,302.46", "30,574,470,082.36"]
+
+
+def test_financial_fact_review_is_explicit_and_does_not_assess_thesis(tmp_path):
+    store = FinancialFactStore(tmp_path)
+    facts = parsed_facts()
+    store.save(facts)
+    target = next(item for item in facts if item.metric == "revenue" and item.period_type == "quarter")
+    reviewed = store.review(
+        target.fact_id, reviewer_id="human-reviewer",
+        review_note="Checked source page, consolidated statement scope and yuan unit.",
+        unit_verified=True, scope_verified=True,
+    )
+    assert reviewed["reviewed_by_human"] is True
+    assert reviewed["unit_verified"] is True
+    assert reviewed["scope_verified"] is True
+    assert reviewed["assessment"] == "unassessed"
+    assert reviewed["value"] == target.value
+    assert reviewed["reviewer_id"] == "human-reviewer"
+    as_of = datetime.now(timezone.utc)
+    listed = next(item for item in store.list(symbol="601118", as_of=as_of) if item["fact_id"] == target.fact_id)
+    assert listed["eligible_for_assessment"] is True
+    assert "ready for hypothesis assessment" in listed["eligibility_reason"]
+
+
+def test_financial_fact_review_rejects_unknown_fact_and_missing_note(tmp_path):
+    from investment_engine.evidence import EvidenceError
+
+    store = FinancialFactStore(tmp_path)
+    with pytest.raises(EvidenceError, match="not found"):
+        store.review("missing", reviewer_id="reviewer", review_note="checked",
+                     unit_verified=True, scope_verified=True)
+    store.save(parsed_facts())
+    target = parsed_facts()[0]
+    with pytest.raises(EvidenceError, match="reviewer_id and review_note"):
+        store.review(target.fact_id, reviewer_id="", review_note="",
+                     unit_verified=True, scope_verified=True)
+
+
+def test_reingestion_preserves_review_only_when_provenance_is_identical(tmp_path):
+    from dataclasses import replace
+
+    store = FinancialFactStore(tmp_path)
+    facts = parsed_facts()
+    store.save(facts)
+    target = facts[0]
+    store.review(
+        target.fact_id, reviewer_id="human-reviewer",
+        review_note="Compared with original financial statement page",
+        unit_verified=True, scope_verified=True,
+    )
+    # Provider downloads the same report again: preserve the approval and
+    # earliest retrieval time, so historical as-of behavior does not drift.
+    later = replace(target, retrieved_at="2026-11-09T16:00:00+08:00")
+    store.save([later])
+    values = {x["fact_id"]: x for x in store._read()}
+    assert values[target.fact_id]["reviewed_by_human"] is True
+    assert values[target.fact_id]["reviewer_id"] == "human-reviewer"
+    assert values[target.fact_id]["retrieved_at"] == target.retrieved_at
+
+    # A changed source row mapping with the same value is NOT auto-approved.
+    changed = replace(target, source_label="different reported line")
+    store.save([changed])
+    values = {x["fact_id"]: x for x in store._read()}
+    assert values[target.fact_id]["reviewed_by_human"] is False
+    assert values[target.fact_id]["scope_verified"] is False
+
+
+def test_provider_cannot_inject_manually_verified_fact(tmp_path):
+    from dataclasses import replace
+    from investment_engine.evidence import EvidenceError
+
+    store = FinancialFactStore(tmp_path)
+    target = parsed_facts()[0]
+    with pytest.raises(EvidenceError, match="cannot directly approve"):
+        store.save([replace(target, reviewed_by_human=True, unit_verified=True)])
+
+
+def test_historical_fact_query_does_not_expose_future_human_review(tmp_path):
+    store = FinancialFactStore(tmp_path)
+    facts = parsed_facts()
+    store.save(facts)
+    target = facts[0]
+    store.review(target.fact_id, reviewer_id="reviewer", review_note="Checked source page",
+                 unit_verified=True, scope_verified=True)
+    # The fact existed on this historical date, but its later review did not.
+    historical = datetime(2026, 11, 8, 12, 0, tzinfo=timezone.utc)
+    item = next(x for x in store.list(symbol="601118", as_of=historical)
+                if x["fact_id"] == target.fact_id)
+    assert item["visible_as_of"] is True
+    assert item["reviewed_by_human"] is False
+    assert item["unit_verified"] is False
+    assert item["scope_verified"] is False
+    assert item["reviewed_at"] is None
+    assert item["eligible_for_assessment"] is False

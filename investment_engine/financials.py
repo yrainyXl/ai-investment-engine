@@ -106,6 +106,10 @@ class FinancialFact:
     extraction_status: str = "machine_extracted_pending_human_review"
     reviewed_by_human: bool = False
     unit_verified: bool = False
+    scope_verified: bool = False
+    reviewed_at: str | None = None
+    reviewer_id: str | None = None
+    review_note: str | None = None
     assessment: str = "unassessed"
     evidence_type: str = "confirmed_fact"
     parser_version: str = PARSER_VERSION
@@ -352,7 +356,32 @@ class FinancialFactStore:
         merged = {str(item.get("fact_id")): item for item in existing}
         for fact in facts:
             fact.validate()
-            merged[fact.fact_id] = asdict(fact)
+            if fact.reviewed_by_human or fact.unit_verified or fact.scope_verified:
+                raise EvidenceError("provider ingestion cannot directly approve machine-extracted facts")
+            incoming = asdict(fact)
+            old_fact = merged.get(fact.fact_id)
+            # Refreshing a disclosure must not erase an existing manual review.
+            # Preserve the review only if the exact source, reported figure, unit,
+            # row and statement scope remain unchanged.
+            identity_fields = (
+                "symbol", "metric", "value", "currency", "unit", "value_scale",
+                "unit_basis", "period_type", "period_start", "period_end",
+                "statement_scope", "source_document_id", "source_url",
+                "source_section", "source_label",
+            )
+            if old_fact and all(old_fact.get(k) == incoming.get(k) for k in identity_fields):
+                for field in (
+                    "reviewed_by_human", "unit_verified", "scope_verified",
+                    "reviewed_at", "reviewer_id", "review_note",
+                    "extraction_status", "assessment",
+                ):
+                    if field in old_fact:
+                        incoming[field] = old_fact[field]
+                old_retrieved = _parse_aware(old_fact.get("retrieved_at"))
+                new_retrieved = _parse_aware(incoming.get("retrieved_at"))
+                if old_retrieved and new_retrieved and old_retrieved < new_retrieved:
+                    incoming["retrieved_at"] = old_fact["retrieved_at"]
+            merged[fact.fact_id] = incoming
         ordered = sorted(merged.values(), key=lambda x: (
             x.get("period_end", ""), x.get("published_at", ""), x.get("metric", ""), x.get("fact_id", "")
         ))
@@ -379,21 +408,75 @@ class FinancialFactStore:
                 continue
             value = dict(item)
             value["visible_as_of"] = visible if as_of is not None else None
+            reviewed_at = _parse_aware(value.get("reviewed_at"))
+            review_visible = bool(reviewed_at and as_of and reviewed_at <= as_of)
             eligible = bool(
                 value.get("reviewed_by_human") is True
                 and value.get("unit_verified") is True
-                and value.get("assessment") in {"supporting", "contradicting"}
-                and visible
+                and value.get("scope_verified") is True
+                and visible and review_visible
             )
             value["eligible_for_assessment"] = eligible
-            value["eligibility_reason"] = (
-                "eligible after human review and point-in-time checks" if eligible else
-                "machine extraction requires human verification of statement scope, row mapping, unit and period"
-                if not item.get("reviewed_by_human") or not item.get("unit_verified") else
-                "financial fact needs an explicit supporting/contradicting thesis assessment"
-            )
+            # Historical queries must not expose later human-review metadata
+            # as if it existed at the requested as_of.
+            if as_of is not None and not review_visible:
+                value.update({
+                    "reviewed_by_human": False,
+                    "unit_verified": False,
+                    "scope_verified": False,
+                    "reviewed_at": None,
+                    "reviewer_id": None,
+                    "review_note": None,
+                    "extraction_status": "machine_extracted_pending_human_review",
+                })
+            if not visible:
+                reason = "source was not published and retrieved by as_of"
+            elif not item.get("reviewed_by_human") or not item.get("unit_verified") or not item.get("scope_verified"):
+                reason = "machine extraction requires human verification of statement scope, row mapping, unit and period"
+            elif not review_visible:
+                reason = "human review was not completed by as_of"
+            elif item.get("assessment") == "unassessed":
+                reason = "ready for hypothesis assessment; no thesis evaluation has been recorded yet"
+            else:
+                reason = "eligible for hypothesis assessment; a prior thesis assessment exists"
+            value["eligibility_reason"] = reason
             output.append(value)
         return output[-limit:]
+
+    def get_by_id(self, fact_id: str, *, as_of: datetime) -> dict[str, Any] | None:
+        if not fact_id:
+            raise EvidenceError("fact_id is required")
+        for item in self.list(as_of=as_of, limit=5000):
+            if item.get("fact_id") == fact_id:
+                return item
+        return None
+
+    def review(
+        self, fact_id: str, *, reviewer_id: str, review_note: str,
+        unit_verified: bool, scope_verified: bool,
+    ) -> dict[str, Any]:
+        """Record an explicit human review without changing extracted values or assessment."""
+        if not reviewer_id.strip() or not review_note.strip():
+            raise EvidenceError("reviewer_id and review_note are required")
+        items = self._read()
+        for item in items:
+            if item.get("fact_id") == fact_id:
+                item["reviewed_by_human"] = True
+                item["unit_verified"] = bool(unit_verified)
+                item["scope_verified"] = bool(scope_verified)
+                item["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+                item["reviewer_id"] = reviewer_id.strip()
+                item["review_note"] = review_note.strip()
+                item["extraction_status"] = (
+                    "human_verified" if unit_verified and scope_verified
+                    else "human_reviewed_with_open_issues"
+                )
+                # Deliberately leave assessment='unassessed'; review is not thesis support.
+                temporary = self.path.with_suffix(".json.tmp")
+                temporary.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                temporary.replace(self.path)
+                return dict(item)
+        raise EvidenceError("financial fact not found")
 
     def summary(self, *, as_of: datetime) -> dict[str, Any]:
         items = self.list(as_of=as_of, limit=5000)

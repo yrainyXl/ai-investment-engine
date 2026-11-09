@@ -245,3 +245,29 @@ DSH 实际状态：
 - 任务严格要求先检查工作树，再 fetch 并验证 SHA；只有网络和 fast-forward 前置条件通过才允许重建 engine。若 fetch 超时必须停止，不修改服务器。
 - 任务获准的公开数据同步仅包括 CNINFO 公告元数据、99qh 库存（范围未知）和 2026-Q3 财报 PDF；全部只写本地 `/data/evidence`。不触碰 OTW、订单、调度、账户、策略、权限或其他服务。
 - 当前不得将任务 accepted / running 视为部署完成；实际部署 SHA、健康检查和数据文件结果以 DSH 终态回执为准。
+
+
+## 二十四、2026-11-09 M4 假设验证与估值基础（开发中）
+
+- 已确认 v0.4.0 主体部署和 Q3 财报事实同步成功：目标部署 SHA `f471aa11a2811d13a49f24a76b28354eb781dc35`；`financial_facts.json` 共 13 条，全部仍为机器提取待人工审核。服务器数据没有自动批准。
+- 新建分支 `feat/m4-hypothesis-evaluator`，基于 v0.4.0 开始 M4；当前最新分支 SHA `6f0ea2a5840944c29e8ef314820cbbe72f0fbe2d`（后续提交会继续更新）。
+- 已新增确定性 HypothesisDefinition / HypothesisVariable / EvaluationResult 契约与安全运算：sum、difference、product、ratio、margin、growth、weighted_sum；使用 Decimal，不执行 eval。
+- 已实现 point-in-time 约束：发布日期、生效时间、抓取时间、人工审核时间均不能晚于 as_of；检查单位、统计口径、审核状态、期间一致性、YTD/季度混用、增长期间长度、缺失输入和零分母。
+- 已实现 what-if 场景分析，所有覆盖值显式标记为 `scenario_assumption`，不会修改原始事实。
+- 新增财务事实人工审核写入流程：必须显式确认已核对来源，记录 reviewer、review_note、reviewed_at、unit_verified、scope_verified；审核不会自动把 assessment 改成 supporting/contradicting。
+- 假设评估 API 改为只接受 fact_id 引用，从本地 FinancialFactStore 解析真实值和可信审核标记；不接受调用方自行声明 reviewed/unit/scope，避免 AI 通过请求体伪造数据质量状态。
+- 新增纯计算估值库：已审核每股指标倍数法、DCF、WACC/terminal growth 敏感性分析；尚未接入 HTTP API 或财务事实 resolver，不能视为已形成完整估值数据链。
+- 新增 M4 单元测试与 API 测试，待 GitHub Actions CI 运行。当前未创建 PR、未合并 main、未部署服务器；没有修改 OTW 数据/权限、订单或调度。
+- 当前 M4 API 的假设输入首批仅接公司财务事实（CNINFO）；基金、ETF、行业和宏观指标需后续 provider-neutral resolver 扩展。研究 Agent、反方 Agent、风险引擎、仓位模型和完整交易闭环仍未实现。
+- 设计文档：`docs/M4_HYPOTHESIS_AND_VALUATION.md`。
+
+
+## 二十五、2026-11-09 M4 PR #13 集成与验收门禁
+
+- 为修复 3 个 M4 测试文件曾误提交 main 造成的临时不一致，已从最新 main 单独建立 `feat/m4-integrated-on-main`，把 M4 代码、测试、文档组合成一个完整增量；旧开发分支不直接合并。
+- PR #13: https://github.com/yrainyXl/ai-investment-engine/pull/13 （draft，等待当前 HEAD 完整 CI 通过及最终代码审查）。
+- 版本目标 v0.5.0，image ai-investment-engine:0.5。通用假设 API 从服务器本地 FinancialFactStore 的 fact_id 解析变量，并严格匹配申明的 metric/period/statement scope；拒绝调用方自报审核标记。
+- 人工审核端点新增独立的 X-Fact-Review-Token / ENGINE_FACT_REVIEW_TOKEN。未配置时 503；与 ENGINE_API_TOKEN 相同时禁用；用户需显式确认核对原始公告。DSH 和自动 Agent 不能自行审批。
+- 修复数据重新同步覆盖人工审核问题：相同 source/值/单位/期间/行标签/范围时保留审核记录与首次抓取时间，来源/字段映射变化则需重新审核。历史 as_of 查询屏蔽未来人工复核状态。
+- 修复 CI 暴露的 DCF 时间校验未定义变量、测试假设时间戳和必填字段缺失；补充回归测试。
+- DSH 部署任务文档：`docs/M4_DEPLOY_TASK.md`。**此时尚未部署 v0.5**，不得把 PR 或 CI 状态写成服务器真实状态。验收要求未经审核的 13 条 Q3 财务事实仍不可评估；禁止自动 review、OTW 写入、下单、创建调度。

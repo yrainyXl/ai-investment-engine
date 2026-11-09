@@ -138,6 +138,13 @@ class DCFInputPayload(BaseModel):
     shares_outstanding: str
     net_debt_source_id: str = Field(min_length=1, max_length=512)
     shares_source_id: str = Field(min_length=1, max_length=512)
+    net_debt_published_at: str
+    net_debt_effective_at: str
+    net_debt_retrieved_at: str
+    shares_published_at: str
+    shares_effective_at: str
+    shares_retrieved_at: str
+    assumptions_as_of: str
     assumptions_reviewed_by_human: bool = False
     source_facts_reviewed_by_human: bool = False
     unit_verified: bool = False

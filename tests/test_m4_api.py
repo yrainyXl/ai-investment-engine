@@ -6,8 +6,6 @@ from investment_engine.financials import FinancialFact, FinancialFactStore
 
 client = TestClient(app)
 TOKEN = {"Authorization": "Bearer test-api-token"}
-AS_OF = "2026-11-09T12:00:00+08:00"
-
 
 def make_fact(fact_id, metric, value):
     return FinancialFact(
@@ -57,7 +55,6 @@ def hypothesis_payload(facts):
             {"variable_id": "gross_profit", "fact_id": facts[0].fact_id},
             {"variable_id": "revenue", "fact_id": facts[1].fact_id},
         ],
-        "as_of": AS_OF,
     }
 
 

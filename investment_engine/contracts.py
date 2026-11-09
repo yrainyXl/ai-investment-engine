@@ -169,6 +169,7 @@ def company_financial_from_fact(fact: Any) -> CompanyFinancials:
     reviewed = (
         getattr(fact, "reviewed_by_human", False) is True
         and getattr(fact, "unit_verified", False) is True
+        and getattr(fact, "scope_verified", False) is True
     )
     item = CompanyFinancials(
         entity_id=str(fact.symbol),

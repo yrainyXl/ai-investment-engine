@@ -123,6 +123,8 @@ def _authorize_fact_review(review_token: str | None) -> None:
     configured = os.getenv("ENGINE_FACT_REVIEW_TOKEN", "")
     if not configured:
         raise HTTPException(503, "Financial fact review is disabled without ENGINE_FACT_REVIEW_TOKEN")
+    if compare_digest(configured, os.getenv("ENGINE_API_TOKEN", "")):
+        raise HTTPException(503, "Fact review credential must be different from ENGINE_API_TOKEN")
     if not review_token or not compare_digest(review_token, configured):
         raise HTTPException(403, "Separate fact-review authorization required")
 

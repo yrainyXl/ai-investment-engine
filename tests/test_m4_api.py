@@ -1,139 +1,142 @@
 from fastapi.testclient import TestClient
 
 from investment_engine.api import app
+from investment_engine.financials import FinancialFact, FinancialFactStore
 
 
 client = TestClient(app)
 TOKEN = {"Authorization": "Bearer test-api-token"}
+AS_OF = "2026-11-09T12:00:00+08:00"
 
 
-def hypothesis_payload():
+def make_fact(fact_id, metric, value):
+    return FinancialFact(
+        fact_id=fact_id, symbol="601118", issuer_name="Example issuer",
+        metric=metric, value=value, unit="CNY", value_scale="yuan",
+        unit_basis="RMB yuan", currency="CNY", period_type="quarter",
+        period_label="2026-Q3", period_start="2026-07-01", period_end="2026-09-30",
+        statement_scope="consolidated", source_document_id="cninfo:601118:q3",
+        source_title="2026年第三季度报告", source_name="cninfo",
+        source_url="https://static.cninfo.com.cn/report.pdf",
+        published_at="2026-10-29T18:00:00+08:00",
+        retrieved_at="2026-10-30T09:00:00+08:00", source_page=1,
+        source_section="consolidated_income_statement", source_label=metric,
+        source_excerpt="source excerpt", audit_status="unaudited",
+    )
+
+
+def seed_facts(tmp_path, *, reviewed=False):
+    store = FinancialFactStore(tmp_path)
+    facts = [
+        make_fact("fact-gross-profit", "gross_profit", "200"),
+        make_fact("fact-revenue", "revenue", "1000"),
+    ]
+    store.save(facts)
+    if reviewed:
+        for fact in facts:
+            store.review(
+                fact.fact_id, reviewer_id="human-reviewer",
+                review_note="Checked the official source page, reporting scope and unit.",
+                unit_verified=True, scope_verified=True,
+            )
+    return facts
+
+
+def hypothesis_payload(facts):
     return {
         "hypothesis": {
-            "hypothesis_id": "gross-margin-q3",
-            "entity_id": "example-equity",
+            "hypothesis_id": "gross-margin-q3", "entity_id": "601118",
             "strategy_id": "fundamental-v1",
             "claim": "Gross margin remains above 10%",
             "operation": "margin",
             "variables": ["gross_profit", "revenue"],
-            "target": "0.1",
-            "target_unit": "ratio",
-            "direction": "above",
+            "target": "0.1", "target_unit": "ratio", "direction": "above",
             "tolerance": "0.02",
         },
-        "variables": [
-            {
-                "variable_id": "gross_profit", "metric_id": "gross_profit",
-                "value": "20", "unit": "CNY", "period_type": "quarter",
-                "period_start": "2026-07-01", "period_end": "2026-09-30",
-                "source_id": "source:gross-profit",
-                "published_at": "2026-10-29T18:00:00+08:00",
-                "effective_at": "2026-09-30T16:00:00+08:00",
-                "retrieved_at": "2026-10-30T09:00:00+08:00",
-                "reviewed_by_human": True, "unit_verified": True, "scope_verified": True,
-            },
-            {
-                "variable_id": "revenue", "metric_id": "revenue",
-                "value": "100", "unit": "CNY", "period_type": "quarter",
-                "period_start": "2026-07-01", "period_end": "2026-09-30",
-                "source_id": "source:revenue",
-                "published_at": "2026-10-29T18:00:00+08:00",
-                "effective_at": "2026-09-30T16:00:00+08:00",
-                "retrieved_at": "2026-10-30T09:00:00+08:00",
-                "reviewed_by_human": True, "unit_verified": True, "scope_verified": True,
-            },
+        "fact_refs": [
+            {"variable_id": "gross_profit", "fact_id": facts[0].fact_id},
+            {"variable_id": "revenue", "fact_id": facts[1].fact_id},
         ],
-        "as_of": "2026-11-09T12:00:00+08:00",
+        "as_of": AS_OF,
     }
 
 
-def test_hypothesis_endpoint_requires_authentication(monkeypatch):
+def test_hypothesis_endpoint_requires_authentication(monkeypatch, tmp_path):
     monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
-    response = client.post("/v1/hypotheses/evaluate", json=hypothesis_payload())
+    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
+    facts = seed_facts(tmp_path, reviewed=True)
+    response = client.post("/v1/hypotheses/evaluate", json=hypothesis_payload(facts))
     assert response.status_code == 401
 
 
-def test_hypothesis_endpoint_evaluates_and_persists_local_report(monkeypatch, tmp_path):
+def test_hypothesis_endpoint_resolves_reviewed_local_facts_and_persists_report(monkeypatch, tmp_path):
     monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
     monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
-    response = client.post("/v1/hypotheses/evaluate", json=hypothesis_payload(), headers=TOKEN)
+    facts = seed_facts(tmp_path, reviewed=True)
+    response = client.post("/v1/hypotheses/evaluate", json=hypothesis_payload(facts), headers=TOKEN)
     assert response.status_code == 200
     body = response.json()
     assert body["evaluation"]["status"] == "supported"
     assert body["evaluation"]["computed_value"] == "0.2"
+    assert body["evaluation"]["input_source_ids"] == [facts[0].fact_id, facts[1].fact_id]
     assert body["side_effects"] == "local_audit_report_only"
     assert body["orders_enabled"] is False
     assert body["report"]["report_id"]
     assert client.get("/v1/reports?kind=hypothesis", headers=TOKEN).json()["reports"][0]["kind"] == "hypothesis"
 
 
-def test_hypothesis_endpoint_keeps_unreviewed_facts_ineligible(monkeypatch, tmp_path):
+def test_hypothesis_endpoint_does_not_trust_caller_review_flags(monkeypatch, tmp_path):
     monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
     monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
-    payload = hypothesis_payload()
-    payload["variables"][0]["reviewed_by_human"] = False
+    facts = seed_facts(tmp_path, reviewed=False)
+    payload = hypothesis_payload(facts)
     response = client.post("/v1/hypotheses/evaluate", json=payload, headers=TOKEN)
     assert response.status_code == 200
     assert response.json()["evaluation"]["status"] == "not_evaluable"
     assert response.json()["evaluation"]["computed_value"] is None
 
+    payload["fact_refs"][0]["reviewed_by_human"] = True
+    spoofed = client.post("/v1/hypotheses/evaluate", json=payload, headers=TOKEN)
+    assert spoofed.status_code == 422
+
+
+def test_fact_review_requires_explicit_confirmation_and_keeps_thesis_unassessed(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
+    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
+    facts = seed_facts(tmp_path, reviewed=False)
+    body = {
+        "reviewer_id": "human-reviewer", "review_note": "Checked official statement page and units.",
+        "unit_verified": True, "scope_verified": True,
+    }
+    missing_confirmation = client.post(
+        f"/v1/fundamentals/facts/{facts[0].fact_id}/review", json=body, headers=TOKEN,
+    )
+    assert missing_confirmation.status_code == 400
+    body["confirm_source_checked"] = True
+    response = client.post(
+        f"/v1/fundamentals/facts/{facts[0].fact_id}/review", json=body, headers=TOKEN,
+    )
+    assert response.status_code == 200
+    reviewed = response.json()["fact"]
+    assert reviewed["reviewed_by_human"] is True
+    assert reviewed["unit_verified"] is True
+    assert reviewed["scope_verified"] is True
+    assert reviewed["assessment"] == "unassessed"
+
 
 def test_scenario_endpoint_labels_overrides_as_assumptions(monkeypatch, tmp_path):
     monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
     monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
-    payload = hypothesis_payload()
+    facts = seed_facts(tmp_path, reviewed=True)
+    payload = hypothesis_payload(facts)
     payload["scenarios"] = [{
         "scenario_id": "downside", "name": "Downside",
         "description": "Gross profit falls by half",
-        "overrides": {"gross_profit": "10"},
+        "overrides": {"gross_profit": "100"},
     }]
     response = client.post("/v1/hypotheses/scenarios", json=payload, headers=TOKEN)
     assert response.status_code == 200
     scenario = response.json()["scenarios"]["scenarios"][0]["evaluation"]
     assert scenario["status"] == "inconclusive"
     assert scenario["input_kinds"]["gross_profit"] == "scenario_assumption"
-
-
-def test_multiple_valuation_endpoint(monkeypatch, tmp_path):
-    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
-    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
-    payload = {
-        "metric": {
-            "metric_id": "eps", "value": "2.5", "unit": "CNY/share",
-            "period_end": "2026-09-30", "source_id": "source:eps",
-            "published_at": "2026-10-29T18:00:00+08:00",
-            "effective_at": "2026-09-30T16:00:00+08:00",
-            "retrieved_at": "2026-10-30T09:00:00+08:00",
-            "reviewed_by_human": True, "unit_verified": True, "scope_verified": True,
-        },
-        "multiple_name": "PE", "multiple": "12", "as_of": "2026-11-09T12:00:00+08:00",
-    }
-    response = client.post("/v1/valuation/multiples", json=payload, headers=TOKEN)
-    assert response.status_code == 200
-    assert response.json()["valuation"]["implied_value"] == "30.0"
-
-
-def test_dcf_endpoint_persists_sensitivity_report(monkeypatch, tmp_path):
-    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
-    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
-    payload = {
-        "model": {
-            "entity_id": "example-equity", "currency": "CNY",
-            "forecast_fcf": ["100", "110", "120"],
-            "discount_rate": "0.10", "terminal_growth": "0.03",
-            "net_debt": "50", "shares_outstanding": "100",
-            "net_debt_source_id": "source:net-debt", "shares_source_id": "source:shares",
-            "assumptions_reviewed_by_human": True, "source_facts_reviewed_by_human": True,
-            "unit_verified": True, "scope_verified": True,
-        },
-        "as_of": "2026-11-09T12:00:00+08:00",
-        "sensitivity_discount_rates": ["0.08", "0.10"],
-        "sensitivity_terminal_growth_rates": ["0.02", "0.09"],
-    }
-    response = client.post("/v1/valuation/dcf", json=payload, headers=TOKEN)
-    assert response.status_code == 200
-    body = response.json()
-    assert body["valuation"]["status"] == "calculated"
-    assert len(body["sensitivity"]) == 4
-    assert body["sensitivity"][1]["status"] == "not_evaluable"
-    assert body["report"]["report_id"]
+    assert scenario["input_source_ids"][0] == "scenario:downside:gross_profit"

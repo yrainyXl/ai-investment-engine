@@ -118,6 +118,15 @@ def _authorize(authorization: str | None, *, otw_access: bool = False) -> None:
         raise HTTPException(401, "Authentication required")
 
 
+def _authorize_fact_review(review_token: str | None) -> None:
+    """Separate approval credential; a research API bearer must not approve evidence."""
+    configured = os.getenv("ENGINE_FACT_REVIEW_TOKEN", "")
+    if not configured:
+        raise HTTPException(503, "Financial fact review is disabled without ENGINE_FACT_REVIEW_TOKEN")
+    if not review_token or not compare_digest(review_token, configured):
+        raise HTTPException(403, "Separate fact-review authorization required")
+
+
 def _otw_client() -> OTWReadClient:
     return OTWReadClient(
         os.getenv("OTW_BASE_URL", ""), os.getenv("OTW_API_TOKEN", ""),
@@ -382,10 +391,14 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
 
 
 @app.post("/v1/fundamentals/facts/{fact_id}/review")
-def review_financial_fact_endpoint(fact_id: str, req: FinancialFactReviewPayload,
-                                   authorization: str | None = Header(default=None)):
-    """Record an explicit human review; never called by scheduled ingestion or analysis."""
+def review_financial_fact_endpoint(
+    fact_id: str, req: FinancialFactReviewPayload,
+    authorization: str | None = Header(default=None),
+    review_token: str | None = Header(default=None, alias="X-Fact-Review-Token"),
+):
+    """Privileged manual review; research API credentials cannot approve facts."""
     _authorize(authorization)
+    _authorize_fact_review(review_token)
     if not req.confirm_source_checked:
         raise HTTPException(400, "Explicit source-review confirmation is required")
     try:

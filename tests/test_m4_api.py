@@ -53,8 +53,12 @@ def hypothesis_payload(facts):
             "tolerance": "0.02",
         },
         "fact_refs": [
-            {"variable_id": "gross_profit", "fact_id": facts[0].fact_id},
-            {"variable_id": "revenue", "fact_id": facts[1].fact_id},
+            {"variable_id": "gross_profit", "fact_id": facts[0].fact_id,
+             "expected_metric": "gross_profit", "expected_period_type": "quarter",
+             "expected_statement_scope": "consolidated"},
+            {"variable_id": "revenue", "fact_id": facts[1].fact_id,
+             "expected_metric": "revenue", "expected_period_type": "quarter",
+             "expected_statement_scope": "consolidated"},
         ],
     }
 
@@ -167,3 +171,20 @@ def test_fact_review_rejects_bearer_token_without_review_credential(monkeypatch,
     response = client.post(f"/v1/fundamentals/facts/{facts[0].fact_id}/review",
                            json=body, headers=TOKEN)
     assert response.status_code == 403
+
+
+def test_hypothesis_rejects_mismatched_metric_or_statement_scope(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
+    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
+    facts = seed_facts(tmp_path, reviewed=True)
+    payload = hypothesis_payload(facts)
+    payload["fact_refs"][0]["expected_metric"] = "revenue"
+    response = client.post("/v1/hypotheses/evaluate", json=payload, headers=TOKEN)
+    assert response.status_code == 422
+    assert "different metric" in response.json()["detail"]
+
+    payload = hypothesis_payload(facts)
+    payload["fact_refs"][1]["expected_statement_scope"] = "parent"
+    response = client.post("/v1/hypotheses/evaluate", json=payload, headers=TOKEN)
+    assert response.status_code == 422
+    assert "different statement scope" in response.json()["detail"]

@@ -6,6 +6,7 @@ from investment_engine.financials import FinancialFact, FinancialFactStore
 
 client = TestClient(app)
 TOKEN = {"Authorization": "Bearer test-api-token"}
+REVIEW_TOKEN = {"X-Fact-Review-Token": "test-review-token"}
 
 def make_fact(fact_id, metric, value):
     return FinancialFact(
@@ -101,17 +102,18 @@ def test_fact_review_requires_explicit_confirmation_and_keeps_thesis_unassessed(
     monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
     monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
     facts = seed_facts(tmp_path, reviewed=False)
+    monkeypatch.setenv("ENGINE_FACT_REVIEW_TOKEN", "test-review-token")
     body = {
         "reviewer_id": "human-reviewer", "review_note": "Checked official statement page and units.",
         "unit_verified": True, "scope_verified": True,
     }
     missing_confirmation = client.post(
-        f"/v1/fundamentals/facts/{facts[0].fact_id}/review", json=body, headers=TOKEN,
+        f"/v1/fundamentals/facts/{facts[0].fact_id}/review", json=body, headers={**TOKEN, **REVIEW_TOKEN},
     )
     assert missing_confirmation.status_code == 400
     body["confirm_source_checked"] = True
     response = client.post(
-        f"/v1/fundamentals/facts/{facts[0].fact_id}/review", json=body, headers=TOKEN,
+        f"/v1/fundamentals/facts/{facts[0].fact_id}/review", json=body, headers={**TOKEN, **REVIEW_TOKEN},
     )
     assert response.status_code == 200
     reviewed = response.json()["fact"]
@@ -137,3 +139,31 @@ def test_scenario_endpoint_labels_overrides_as_assumptions(monkeypatch, tmp_path
     assert scenario["status"] == "inconclusive"
     assert scenario["input_kinds"]["gross_profit"] == "scenario_assumption"
     assert scenario["input_source_ids"][0] == "scenario:downside:gross_profit"
+
+
+def test_fact_review_disabled_without_separate_credential(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
+    monkeypatch.delenv("ENGINE_FACT_REVIEW_TOKEN", raising=False)
+    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
+    facts = seed_facts(tmp_path)
+    body = {
+        "reviewer_id": "reviewer", "review_note": "Source checked",
+        "unit_verified": True, "scope_verified": True, "confirm_source_checked": True,
+    }
+    response = client.post(f"/v1/fundamentals/facts/{facts[0].fact_id}/review",
+                           json=body, headers=TOKEN)
+    assert response.status_code == 503
+
+
+def test_fact_review_rejects_bearer_token_without_review_credential(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENGINE_API_TOKEN", "test-api-token")
+    monkeypatch.setenv("ENGINE_FACT_REVIEW_TOKEN", "test-review-token")
+    monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path))
+    facts = seed_facts(tmp_path)
+    body = {
+        "reviewer_id": "reviewer", "review_note": "Source checked",
+        "unit_verified": True, "scope_verified": True, "confirm_source_checked": True,
+    }
+    response = client.post(f"/v1/fundamentals/facts/{facts[0].fact_id}/review",
+                           json=body, headers=TOKEN)
+    assert response.status_code == 403

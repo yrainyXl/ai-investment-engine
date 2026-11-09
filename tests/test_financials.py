@@ -199,8 +199,8 @@ def test_financial_fact_review_is_explicit_and_does_not_assess_thesis(tmp_path):
     assert reviewed["reviewer_id"] == "human-reviewer"
     as_of = datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)
     listed = next(item for item in store.list(symbol="601118", as_of=as_of) if item["fact_id"] == target.fact_id)
-    assert listed["eligible_for_assessment"] is False
-    assert "explicit supporting/contradicting" in listed["eligibility_reason"]
+    assert listed["eligible_for_assessment"] is True
+    assert "ready for hypothesis assessment" in listed["eligibility_reason"]
 
 
 def test_financial_fact_review_rejects_unknown_fact_and_missing_note(tmp_path):

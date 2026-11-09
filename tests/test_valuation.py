@@ -20,7 +20,8 @@ def reviewed_metric(value="2.5", **overrides):
         "published_at": "2026-10-29T18:00:00+08:00",
         "effective_at": "2026-09-30T16:00:00+08:00",
         "retrieved_at": "2026-10-30T09:00:00+08:00",
-        "reviewed_by_human": True, "unit_verified": True, "scope_verified": True,
+        "reviewed_by_human": True, "reviewed_at": "2026-10-30T09:00:00+08:00",
+        "unit_verified": True, "scope_verified": True,
     }
     values.update(overrides)
     return ValuationMetric(**values)

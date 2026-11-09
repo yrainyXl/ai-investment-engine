@@ -58,6 +58,13 @@ class DCFInput:
     shares_outstanding: str
     net_debt_source_id: str
     shares_source_id: str
+    net_debt_published_at: str
+    net_debt_effective_at: str
+    net_debt_retrieved_at: str
+    shares_published_at: str
+    shares_effective_at: str
+    shares_retrieved_at: str
+    assumptions_as_of: str
     assumptions_reviewed_by_human: bool = False
     source_facts_reviewed_by_human: bool = False
     unit_verified: bool = False
@@ -107,6 +114,12 @@ def calculate_multiple_valuation(
     factor = _decimal(multiple, "multiple")
     if not multiple_name.strip() or not metric.metric_id or not metric.source_id:
         raise ValuationError("multiple name, metric identity and source are required")
+    try:
+        metric_period_end = datetime.fromisoformat(metric.period_end).date()
+    except (TypeError, ValueError) as exc:
+        raise ValuationError("metric.period_end must be YYYY-MM-DD") from exc
+    if metric_period_end > cutoff.date():
+        raise ValuationError("metric period_end is after as_of")
     if not metric.unit.endswith("/share"):
         raise ValuationError("multiple valuation requires a per-share metric unit")
     if factor <= 0:
@@ -152,7 +165,7 @@ def calculate_dcf(
     if terminal_growth <= -1 or terminal_growth >= discount_rate:
         raise ValuationError("terminal_growth must be greater than -1 and below discount_rate")
 
-    reasons = []
+    reasons = list(temporal_reasons)
     if not model.assumptions_reviewed_by_human:
         reasons.append("forecast, discount-rate and terminal-growth assumptions are not human reviewed")
     if not model.source_facts_reviewed_by_human:
@@ -214,6 +227,13 @@ def dcf_sensitivity(
                 shares_outstanding=model.shares_outstanding,
                 net_debt_source_id=model.net_debt_source_id,
                 shares_source_id=model.shares_source_id,
+                net_debt_published_at=model.net_debt_published_at,
+                net_debt_effective_at=model.net_debt_effective_at,
+                net_debt_retrieved_at=model.net_debt_retrieved_at,
+                shares_published_at=model.shares_published_at,
+                shares_effective_at=model.shares_effective_at,
+                shares_retrieved_at=model.shares_retrieved_at,
+                assumptions_as_of=model.assumptions_as_of,
                 assumptions_reviewed_by_human=model.assumptions_reviewed_by_human,
                 source_facts_reviewed_by_human=model.source_facts_reviewed_by_human,
                 unit_verified=model.unit_verified, scope_verified=model.scope_verified,

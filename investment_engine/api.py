@@ -429,7 +429,10 @@ def evaluate_hypothesis_scenarios_endpoint(req: HypothesisScenariosRequest,
     _authorize(authorization)
     as_of = _as_of(req.as_of).isoformat()
     try:
-        definition = HypothesisDefinition(**req.hypothesis.model_dump())
+        definition_data = req.hypothesis.model_dump()
+        definition_data["variables"] = tuple(definition_data["variables"])
+        definition_data["weights"] = tuple(definition_data["weights"])
+        definition = HypothesisDefinition(**definition_data)
         items = [HypothesisVariable(**item.model_dump()) for item in req.variables]
         inputs = {item.variable_id: item for item in items}
         if len(inputs) != len(items):

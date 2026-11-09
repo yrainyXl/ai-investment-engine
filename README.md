@@ -1,11 +1,11 @@
-# AI Investment Engine v0.4
+# AI Investment Engine v0.5
 
 OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：读取 OTW 真实账户上下文，通过 AKShare 获取公开日线数据，建立可追溯的数据缓存，评估投资假设并运行透明的基准回测。不会写入 OTW runs/orders/documents，也不会连接券商或下真实订单。
 
 ## 项目施工与多 Agent 分工
 
 - [施工总纲（目标架构、ChatGPT / DSH / OTW 职责、审批与派发协议）](docs/CONSTRUCTION_PLAYBOOK.md)
-- [任务进度台账（基于真实 DSH 返回更新）](docs/PROGRESS_LEDGER.md)
+- [任务进度台账（基于真实 DSH 返回更新）](docs/PROGRESS_LEDGER.md)\n- [M4 投资假设验证与估值设计](docs/M4_HYPOTHESIS_AND_VALUATION.md)
 - [DSH 连接只读能力探查 Issue #2](https://github.com/yrainyXl/ai-investment-engine/issues/2)
 
 部署和开发状态分开记录；GitHub 合并不等于服务器上线，Issue 创建不等于 DSH 已收到任务。
@@ -158,7 +158,7 @@ python -m investment_engine.market_cli sync-financials --symbol 601118 --period 
 - POST /v1/analysis/preview：现有只读分析预览。
 - GET /v1/industry/observations：读取本地行业观察记录及 point-in-time 资格状态。
 - GET /v1/fundamentals/disclosures：读取 CNINFO 公告元数据。
-- GET /v1/fundamentals/facts：读取季度报告结构化事实（机器提取、待人工复核）。
+- GET /v1/fundamentals/facts：读取季度报告结构化事实及审核状态。\n- POST /v1/fundamentals/facts/{fact_id}/review：显式记录人工复核，不自动标注 thesis 支持/反驳。\n- POST /v1/hypotheses/evaluate：基于本地已审核财务事实运行确定性假设验证。\n- POST /v1/hypotheses/scenarios：运行基准与 what-if 情景分析。
 - GET /v1/market-data：列出本地数据序列。
 - POST /v1/market-data/sync：获取并缓存指定 symbol 的日线数据。
 - GET /v1/market-data/{symbol}：读取本地缓存。

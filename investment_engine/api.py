@@ -79,6 +79,9 @@ class HypothesisFactReferencePayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
     variable_id: str = Field(min_length=1, max_length=128)
     fact_id: str = Field(min_length=1, max_length=128)
+    expected_metric: str = Field(min_length=1, max_length=128)
+    expected_period_type: Literal["quarter", "year_to_date"]
+    expected_statement_scope: Literal["consolidated", "parent"]
 
 
 class FinancialFactReviewPayload(BaseModel):
@@ -155,6 +158,12 @@ def _resolve_financial_fact_refs(fact_refs, *, entity_id: str, as_of: datetime):
             raise HypothesisError(f"financial fact not found or not visible as of: {ref.fact_id}")
         if str(fact.get("symbol")) != entity_id:
             raise HypothesisError(f"fact {ref.fact_id} belongs to a different entity")
+        if str(fact.get("metric")) != ref.expected_metric:
+            raise HypothesisError(f"fact {ref.fact_id} has a different metric than declared")
+        if str(fact.get("period_type")) != ref.expected_period_type:
+            raise HypothesisError(f"fact {ref.fact_id} has a different period type than declared")
+        if str(fact.get("statement_scope")) != ref.expected_statement_scope:
+            raise HypothesisError(f"fact {ref.fact_id} has a different statement scope than declared")
         period_end = str(fact["period_end"])
         resolved[ref.variable_id] = HypothesisVariable(
             variable_id=ref.variable_id,

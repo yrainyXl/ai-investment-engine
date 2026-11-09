@@ -390,14 +390,15 @@ class FinancialFactStore:
                 and visible
             )
             value["eligible_for_assessment"] = eligible
-            value["eligibility_reason"] = (
-                "eligible after human review and point-in-time checks" if eligible else
-                "machine extraction requires human verification of statement scope, row mapping, unit and period"
-                if not item.get("reviewed_by_human") or not item.get("unit_verified") or not item.get("scope_verified") else
-                "ready for hypothesis assessment; no thesis evaluation has been recorded yet"
-                if item.get("assessment") == "unassessed" else
-                "eligible for hypothesis assessment; a prior thesis assessment exists"
-            )
+            if not visible:
+                reason = "source was not published and retrieved by as_of"
+            elif not item.get("reviewed_by_human") or not item.get("unit_verified") or not item.get("scope_verified"):
+                reason = "machine extraction requires human verification of statement scope, row mapping, unit and period"
+            elif item.get("assessment") == "unassessed":
+                reason = "ready for hypothesis assessment; no thesis evaluation has been recorded yet"
+            else:
+                reason = "eligible for hypothesis assessment; a prior thesis assessment exists"
+            value["eligibility_reason"] = reason
             output.append(value)
         return output[-limit:]
 

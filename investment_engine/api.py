@@ -158,6 +158,7 @@ def _resolve_financial_fact_refs(fact_refs, *, entity_id: str, as_of: datetime):
             effective_at=f"{period_end}T23:59:59+08:00",
             retrieved_at=str(fact["retrieved_at"]),
             reviewed_by_human=fact.get("reviewed_by_human") is True,
+            reviewed_at=fact.get("reviewed_at"),
             unit_verified=fact.get("unit_verified") is True,
             scope_verified=fact.get("scope_verified") is True,
         )

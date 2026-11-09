@@ -115,3 +115,21 @@ def test_dcf_sensitivity_returns_grid_and_marks_invalid_pairs():
     assert cells[0].status == "calculated"
     assert cells[1].status == "not_evaluable"
     assert cells[1].value_per_share is None
+
+
+def test_multiple_valuation_rejects_review_that_happened_after_as_of():
+    result = calculate_multiple_valuation(
+        reviewed_metric(reviewed_at="2026-11-10T09:00:00+08:00"),
+        multiple_name="PE", multiple="12", as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("reviewed after as_of" in reason for reason in result.reasons)
+
+
+def test_dcf_rejects_source_review_after_as_of():
+    result = calculate_dcf(
+        dcf_model(net_debt_reviewed_at="2026-11-10T09:00:00+08:00"),
+        as_of=AS_OF,
+    )
+    assert result.status == "not_evaluable"
+    assert any("net_debt_reviewed_at is after as_of" in reason for reason in result.reasons)

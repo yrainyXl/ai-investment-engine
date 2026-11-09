@@ -430,7 +430,7 @@ class FinancialFactStore:
                 )
                 # Deliberately leave assessment='unassessed'; review is not thesis support.
                 temporary = self.path.with_suffix(".json.tmp")
-                temporary.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+                temporary.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                 temporary.replace(self.path)
                 return dict(item)
         raise EvidenceError("financial fact not found")

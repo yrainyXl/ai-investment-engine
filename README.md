@@ -5,7 +5,8 @@ OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：
 ## 项目施工与多 Agent 分工
 
 - [施工总纲（目标架构、ChatGPT / DSH / OTW 职责、审批与派发协议）](docs/CONSTRUCTION_PLAYBOOK.md)
-- [任务进度台账（基于真实 DSH 返回更新）](docs/PROGRESS_LEDGER.md)\n- [M4 投资假设验证与估值设计](docs/M4_HYPOTHESIS_AND_VALUATION.md)
+- [任务进度台账（基于真实 DSH 返回更新）](docs/PROGRESS_LEDGER.md)
+- [M4 投资假设验证与估值设计](docs/M4_HYPOTHESIS_AND_VALUATION.md)
 - [DSH 连接只读能力探查 Issue #2](https://github.com/yrainyXl/ai-investment-engine/issues/2)
 
 部署和开发状态分开记录；GitHub 合并不等于服务器上线，Issue 创建不等于 DSH 已收到任务。
@@ -150,6 +151,16 @@ python -m investment_engine.market_cli sync-financials --symbol 601118 --period 
 
 提取结果保存在 `/data/evidence/financial_facts.json`。每条记录保留精确十进制值、报告期间、合并报表口径、发布日期、抓取时间、来源 PDF 和页码。所有结果均标记为 `machine_extracted_pending_human_review`，不会自动进入投资逻辑。详见 [M3 财报提取设计](docs/M3_FINANCIAL_FACTS.md)。
 
+## M4 投资假设验证与估值基础
+
+- 假设评估从本地财务事实 store 按 fact_id 解析输入，不接受调用方自报的人工审核/单位/口径状态。
+- 人工复核通过 POST /v1/fundamentals/facts/{fact_id}/review 显式记录；必须确认已检查原始报告，并记录审核人、备注、单位和报表口径状态。复核不会自动判定支持/反驳 thesis。
+- POST /v1/hypotheses/evaluate 执行安全的 Decimal 运算，检查来源时间、reviewed_at、单位、统计口径、报告期间和数据新鲜度。
+- POST /v1/hypotheses/scenarios 运行 baseline 与显式 what-if 假设；覆盖值标记为 scenario_assumption，不会改写事实。
+- investment_engine/valuation.py 提供 PE/PB 类每股倍数计算、DCF 和敏感性分析纯函数；尚未接入 HTTP API/本地事实 resolver。
+
+当前假设 API 第一版仅接本地公司财务事实；基金、ETF、行业指标和宏观数据需扩展 provider resolver。所有输出都是研究计算，不是买卖指令。详见 [M4 设计](docs/M4_HYPOTHESIS_AND_VALUATION.md)。
+
 ## HTTP API
 
 需要先配置 ENGINE_API_TOKEN。所有接口均受 Bearer Token 保护（/healthz 除外）。
@@ -158,7 +169,10 @@ python -m investment_engine.market_cli sync-financials --symbol 601118 --period 
 - POST /v1/analysis/preview：现有只读分析预览。
 - GET /v1/industry/observations：读取本地行业观察记录及 point-in-time 资格状态。
 - GET /v1/fundamentals/disclosures：读取 CNINFO 公告元数据。
-- GET /v1/fundamentals/facts：读取季度报告结构化事实及审核状态。\n- POST /v1/fundamentals/facts/{fact_id}/review：显式记录人工复核，不自动标注 thesis 支持/反驳。\n- POST /v1/hypotheses/evaluate：基于本地已审核财务事实运行确定性假设验证。\n- POST /v1/hypotheses/scenarios：运行基准与 what-if 情景分析。
+- GET /v1/fundamentals/facts：读取季度报告结构化事实及审核状态。
+- POST /v1/fundamentals/facts/{fact_id}/review：显式记录人工复核，不自动标注 thesis 支持/反驳。
+- POST /v1/hypotheses/evaluate：基于本地已审核财务事实运行确定性假设验证。
+- POST /v1/hypotheses/scenarios：运行基准与 what-if 情景分析。
 - GET /v1/market-data：列出本地数据序列。
 - POST /v1/market-data/sync：获取并缓存指定 symbol 的日线数据。
 - GET /v1/market-data/{symbol}：读取本地缓存。

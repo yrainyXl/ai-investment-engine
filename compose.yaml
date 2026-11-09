@@ -5,7 +5,7 @@ services:
       context: .
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
-    image: ai-investment-engine:0.4
+    image: ai-investment-engine:0.5
     restart: unless-stopped
     env_file:
       - .env

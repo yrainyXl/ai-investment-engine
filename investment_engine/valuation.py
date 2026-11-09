@@ -26,6 +26,7 @@ class ValuationMetric:
     effective_at: str
     retrieved_at: str
     reviewed_by_human: bool = False
+    reviewed_at: str | None = None
     unit_verified: bool = False
     scope_verified: bool = False
 
@@ -65,6 +66,9 @@ class DCFInput:
     shares_effective_at: str
     shares_retrieved_at: str
     assumptions_as_of: str
+    net_debt_reviewed_at: str | None = None
+    shares_reviewed_at: str | None = None
+    assumptions_reviewed_at: str | None = None
     assumptions_reviewed_by_human: bool = False
     source_facts_reviewed_by_human: bool = False
     unit_verified: bool = False
@@ -234,6 +238,9 @@ def dcf_sensitivity(
                 shares_effective_at=model.shares_effective_at,
                 shares_retrieved_at=model.shares_retrieved_at,
                 assumptions_as_of=model.assumptions_as_of,
+                net_debt_reviewed_at=model.net_debt_reviewed_at,
+                shares_reviewed_at=model.shares_reviewed_at,
+                assumptions_reviewed_at=model.assumptions_reviewed_at,
                 assumptions_reviewed_by_human=model.assumptions_reviewed_by_human,
                 source_facts_reviewed_by_human=model.source_facts_reviewed_by_human,
                 unit_verified=model.unit_verified, scope_verified=model.scope_verified,
@@ -255,6 +262,10 @@ def _metric_quality_reasons(
     reasons: list[str] = []
     if require_human_review and not metric.reviewed_by_human:
         reasons.append("source metric is not human reviewed")
+    elif require_human_review and not metric.reviewed_at:
+        reasons.append("source metric review timestamp is missing")
+    elif require_human_review and _timestamp(metric.reviewed_at, "metric.reviewed_at") > as_of:
+        reasons.append("source metric was reviewed after as_of")
     if not metric.unit_verified:
         reasons.append("source metric unit is not verified")
     if not metric.scope_verified:

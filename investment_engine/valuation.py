@@ -169,6 +169,32 @@ def calculate_dcf(
     if terminal_growth <= -1 or terminal_growth >= discount_rate:
         raise ValuationError("terminal_growth must be greater than -1 and below discount_rate")
 
+    temporal_reasons: list[str] = []
+    # Read-only valuation is still a point-in-time claim: every source and model
+    # assumption must have been available and reviewed by the requested as_of.
+    source_timestamps = (
+        ("net_debt_published_at", model.net_debt_published_at),
+        ("net_debt_effective_at", model.net_debt_effective_at),
+        ("net_debt_retrieved_at", model.net_debt_retrieved_at),
+        ("shares_published_at", model.shares_published_at),
+        ("shares_effective_at", model.shares_effective_at),
+        ("shares_retrieved_at", model.shares_retrieved_at),
+        ("assumptions_as_of", model.assumptions_as_of),
+    )
+    for field, timestamp in source_timestamps:
+        if _timestamp(timestamp, field) > cutoff:
+            temporal_reasons.append(f"{field} is after as_of")
+    review_timestamps = (
+        ("net_debt_reviewed_at", model.net_debt_reviewed_at, model.source_facts_reviewed_by_human),
+        ("shares_reviewed_at", model.shares_reviewed_at, model.source_facts_reviewed_by_human),
+        ("assumptions_reviewed_at", model.assumptions_reviewed_at, model.assumptions_reviewed_by_human),
+    )
+    for field, timestamp, required in review_timestamps:
+        if required and not timestamp:
+            temporal_reasons.append(f"{field} is required for reviewed inputs")
+        elif timestamp and _timestamp(timestamp, field) > cutoff:
+            temporal_reasons.append(f"{field} is after as_of")
+
     reasons = list(temporal_reasons)
     if not model.assumptions_reviewed_by_human:
         reasons.append("forecast, discount-rate and terminal-growth assumptions are not human reviewed")

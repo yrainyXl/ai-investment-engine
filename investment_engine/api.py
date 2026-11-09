@@ -19,6 +19,12 @@ from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
 from .research import build_research_snapshot
 from .report_store import ReportStore
+from .hypotheses import HypothesisDefinition, HypothesisError, HypothesisVariable, evaluate_hypothesis
+from .scenarios import ScenarioDefinition, evaluate_scenarios
+from .valuation import (
+    DCFInput, ValuationError, ValuationMetric, calculate_dcf,
+    calculate_multiple_valuation, dcf_sensitivity,
+)
 
 app = FastAPI(title="AI Investment Engine", version="0.4.0")
 
@@ -55,6 +61,72 @@ class ResearchRequest(BaseModel):
     futures_symbol: str | None = None
     as_of: str | None = None
     evidence: dict[str, Any] | None = None
+
+
+class HypothesisDefinitionPayload(BaseModel):
+    hypothesis_id: str = Field(min_length=1, max_length=128)
+    entity_id: str = Field(min_length=1, max_length=128)
+    strategy_id: str = Field(min_length=1, max_length=128)
+    claim: str = Field(min_length=1, max_length=2000)
+    operation: Literal["sum", "difference", "product", "ratio", "growth", "margin", "weighted_sum"]
+    variables: list[str] = Field(min_length=1, max_length=32)
+    target: str
+    target_unit: str = Field(min_length=1, max_length=64)
+    direction: Literal["above", "below", "equal"]
+    tolerance: str = "0"
+    weights: list[str] = []
+    require_human_review: bool = True
+    max_age_days: int | None = Field(default=None, ge=0, le=36500)
+
+
+class HypothesisVariablePayload(BaseModel):
+    variable_id: str = Field(min_length=1, max_length=128)
+    metric_id: str = Field(min_length=1, max_length=128)
+    value: str
+    unit: str = Field(min_length=1, max_length=64)
+    period_type: str = Field(min_length=1, max_length=32)
+    period_start: str
+    period_end: str
+    source_id: str = Field(min_length=1, max_length=512)
+    published_at: str
+    effective_at: str
+    retrieved_at: str
+    reviewed_by_human: bool = False
+    unit_verified: bool = False
+    scope_verified: bool = False
+    input_kind: Literal["observed", "scenario_assumption"] = "observed"
+
+
+class ScenarioDefinitionPayload(BaseModel):
+    scenario_id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(min_length=1, max_length=2000)
+    overrides: dict[str, str]
+
+
+class HypothesisEvaluationRequest(BaseModel):
+    hypothesis: HypothesisDefinitionPayload
+    variables: list[HypothesisVariablePayload] = Field(min_length=1, max_length=32)
+    as_of: str | None = None
+
+
+class HypothesisScenariosRequest(HypothesisEvaluationRequest):
+    scenarios: list[ScenarioDefinitionPayload] = Field(min_length=1, max_length=20)
+
+
+class MultipleValuationRequest(BaseModel):
+    metric: dict[str, Any]
+    multiple_name: str = Field(min_length=1, max_length=32)
+    multiple: str
+    as_of: str | None = None
+    require_human_review: bool = True
+
+
+class DCFValuationRequest(BaseModel):
+    model: dict[str, Any]
+    as_of: str | None = None
+    sensitivity_discount_rates: list[str] = Field(default_factory=list, max_length=20)
+    sensitivity_terminal_growth_rates: list[str] = Field(default_factory=list, max_length=20)
 
 
 def _authorize(authorization: str | None, *, otw_access: bool = False) -> None:
@@ -295,6 +367,92 @@ def research_preview(req: ResearchRequest, authorization: str | None = Header(de
         return report
     except OTWError as exc:
         raise HTTPException(422, "OTW research context unavailable") from exc
+
+
+@app.post("/v1/hypotheses/evaluate")
+def evaluate_hypothesis_endpoint(req: HypothesisEvaluationRequest,
+                                 authorization: str | None = Header(default=None)):
+    """Evaluate explicitly supplied, provenance-rich inputs; persist only a local audit report."""
+    _authorize(authorization)
+    as_of = _as_of(req.as_of).isoformat()
+    try:
+        definition = HypothesisDefinition(**req.hypothesis.model_dump())
+        items = [HypothesisVariable(**item.model_dump()) for item in req.variables]
+        inputs = {item.variable_id: item for item in items}
+        if len(inputs) != len(items):
+            raise HypothesisError("duplicate variable_id in request")
+        result = evaluate_hypothesis(definition, inputs, as_of=as_of)
+        saved = _reports().save("hypothesis", "evaluation", result.to_dict())
+        return {"evaluation": result.to_dict(), "report": saved,
+                "side_effects": "local_audit_report_only", "orders_enabled": False}
+    except HypothesisError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/v1/hypotheses/scenarios")
+def evaluate_hypothesis_scenarios_endpoint(req: HypothesisScenariosRequest,
+                                           authorization: str | None = Header(default=None)):
+    """Compare a baseline with explicit what-if assumptions; no facts are overwritten."""
+    _authorize(authorization)
+    as_of = _as_of(req.as_of).isoformat()
+    try:
+        definition = HypothesisDefinition(**req.hypothesis.model_dump())
+        items = [HypothesisVariable(**item.model_dump()) for item in req.variables]
+        inputs = {item.variable_id: item for item in items}
+        if len(inputs) != len(items):
+            raise HypothesisError("duplicate variable_id in request")
+        scenarios = tuple(ScenarioDefinition(**item.model_dump()) for item in req.scenarios)
+        result = evaluate_scenarios(definition, inputs, scenarios, as_of=as_of)
+        saved = _reports().save("scenario", "evaluation", result.to_dict())
+        return {"scenarios": result.to_dict(), "report": saved,
+                "side_effects": "local_audit_report_only", "orders_enabled": False}
+    except HypothesisError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/v1/valuation/multiples")
+def calculate_multiple_valuation_endpoint(req: MultipleValuationRequest,
+                                          authorization: str | None = Header(default=None)):
+    _authorize(authorization)
+    as_of = _as_of(req.as_of).isoformat()
+    try:
+        metric = ValuationMetric(**req.metric)
+        result = calculate_multiple_valuation(
+            metric, multiple_name=req.multiple_name, multiple=req.multiple,
+            as_of=as_of, require_human_review=req.require_human_review,
+        )
+        saved = _reports().save("valuation", "multiple", result.to_dict())
+        return {"valuation": result.to_dict(), "report": saved,
+                "side_effects": "local_audit_report_only", "orders_enabled": False}
+    except (ValuationError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/v1/valuation/dcf")
+def calculate_dcf_endpoint(req: DCFValuationRequest,
+                           authorization: str | None = Header(default=None)):
+    _authorize(authorization)
+    as_of = _as_of(req.as_of).isoformat()
+    try:
+        model = DCFInput(**req.model)
+        result = calculate_dcf(model, as_of=as_of)
+        sensitivity = []
+        if req.sensitivity_discount_rates or req.sensitivity_terminal_growth_rates:
+            if not req.sensitivity_discount_rates or not req.sensitivity_terminal_growth_rates:
+                raise ValuationError("both sensitivity rate lists are required")
+            sensitivity = [
+                item.__dict__ for item in dcf_sensitivity(
+                    model, as_of=as_of,
+                    discount_rates=tuple(req.sensitivity_discount_rates),
+                    terminal_growth_rates=tuple(req.sensitivity_terminal_growth_rates),
+                )
+            ]
+        payload = {"valuation": result.to_dict(), "sensitivity": sensitivity}
+        saved = _reports().save("valuation", "dcf", payload)
+        return {**payload, "report": saved,
+                "side_effects": "local_audit_report_only", "orders_enabled": False}
+    except (ValuationError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/v1/reports")

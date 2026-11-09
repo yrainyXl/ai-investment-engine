@@ -260,3 +260,14 @@ DSH 实际状态：
 - 新增 M4 单元测试与 API 测试，待 GitHub Actions CI 运行。当前未创建 PR、未合并 main、未部署服务器；没有修改 OTW 数据/权限、订单或调度。
 - 当前 M4 API 的假设输入首批仅接公司财务事实（CNINFO）；基金、ETF、行业和宏观指标需后续 provider-neutral resolver 扩展。研究 Agent、反方 Agent、风险引擎、仓位模型和完整交易闭环仍未实现。
 - 设计文档：`docs/M4_HYPOTHESIS_AND_VALUATION.md`。
+
+
+## 二十五、2026-11-09 M4 PR #13 集成与验收门禁
+
+- 为修复 3 个 M4 测试文件曾误提交 main 造成的临时不一致，已从最新 main 单独建立 `feat/m4-integrated-on-main`，把 M4 代码、测试、文档组合成一个完整增量；旧开发分支不直接合并。
+- PR #13: https://github.com/yrainyXl/ai-investment-engine/pull/13 （draft，等待当前 HEAD 完整 CI 通过及最终代码审查）。
+- 版本目标 v0.5.0，image ai-investment-engine:0.5。通用假设 API 从服务器本地 FinancialFactStore 的 fact_id 解析变量，并严格匹配申明的 metric/period/statement scope；拒绝调用方自报审核标记。
+- 人工审核端点新增独立的 X-Fact-Review-Token / ENGINE_FACT_REVIEW_TOKEN。未配置时 503；与 ENGINE_API_TOKEN 相同时禁用；用户需显式确认核对原始公告。DSH 和自动 Agent 不能自行审批。
+- 修复数据重新同步覆盖人工审核问题：相同 source/值/单位/期间/行标签/范围时保留审核记录与首次抓取时间，来源/字段映射变化则需重新审核。历史 as_of 查询屏蔽未来人工复核状态。
+- 修复 CI 暴露的 DCF 时间校验未定义变量、测试假设时间戳和必填字段缺失；补充回归测试。
+- DSH 部署任务文档：`docs/M4_DEPLOY_TASK.md`。**此时尚未部署 v0.5**，不得把 PR 或 CI 状态写成服务器真实状态。验收要求未经审核的 13 条 Q3 财务事实仍不可评估；禁止自动 review、OTW 写入、下单、创建调度。

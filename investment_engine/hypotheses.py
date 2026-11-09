@@ -264,6 +264,8 @@ def _period_reasons(operation: str, selected: list[HypothesisVariable]) -> list[
             return ["growth inputs must cover periods of equal duration"]
         if current.period_start == prior.period_start and current.period_end == prior.period_end:
             return ["growth requires distinct current and comparison periods"]
+        if prior.period_end >= current.period_start:
+            return ["growth comparison period must end before the current period starts"]
         return []
     periods = {(x.period_type, x.period_start, x.period_end) for x in selected}
     if len(periods) > 1:

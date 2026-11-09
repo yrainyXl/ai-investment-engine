@@ -356,7 +356,32 @@ class FinancialFactStore:
         merged = {str(item.get("fact_id")): item for item in existing}
         for fact in facts:
             fact.validate()
-            merged[fact.fact_id] = asdict(fact)
+            if fact.reviewed_by_human or fact.unit_verified or fact.scope_verified:
+                raise EvidenceError("provider ingestion cannot directly approve machine-extracted facts")
+            incoming = asdict(fact)
+            old_fact = merged.get(fact.fact_id)
+            # Refreshing a disclosure must not erase an existing manual review.
+            # Preserve the review only if the exact source, reported figure, unit,
+            # row and statement scope remain unchanged.
+            identity_fields = (
+                "symbol", "metric", "value", "currency", "unit", "value_scale",
+                "unit_basis", "period_type", "period_start", "period_end",
+                "statement_scope", "source_document_id", "source_url",
+                "source_section", "source_label",
+            )
+            if old_fact and all(old_fact.get(k) == incoming.get(k) for k in identity_fields):
+                for field in (
+                    "reviewed_by_human", "unit_verified", "scope_verified",
+                    "reviewed_at", "reviewer_id", "review_note",
+                    "extraction_status", "assessment",
+                ):
+                    if field in old_fact:
+                        incoming[field] = old_fact[field]
+                old_retrieved = _parse_aware(old_fact.get("retrieved_at"))
+                new_retrieved = _parse_aware(incoming.get("retrieved_at"))
+                if old_retrieved and new_retrieved and old_retrieved < new_retrieved:
+                    incoming["retrieved_at"] = old_fact["retrieved_at"]
+            merged[fact.fact_id] = incoming
         ordered = sorted(merged.values(), key=lambda x: (
             x.get("period_end", ""), x.get("published_at", ""), x.get("metric", ""), x.get("fact_id", "")
         ))

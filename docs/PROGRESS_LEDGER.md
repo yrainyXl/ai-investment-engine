@@ -280,3 +280,14 @@ DSH 实际状态：
 - 重大安全边界：`ENGINE_FACT_REVIEW_TOKEN` 不配置时审核接口禁用，不能与 `ENGINE_API_TOKEN` 相同；研究 API 不能通过请求体自行声明事实已经人工审核。未来数据与未来复核状态不能用于历史 as_of 评估。
 - 已向 DSH 会话 `session-codex-ai-engine-m0-session-20261107-v1` 发出部署验收任务 `ai-engine-m4-v05-deploy-49ac8cd2-20261109-v1`，请求受理；**等待 DSH 实际回传，不得把 accepted 当成 deployed**。
 - DSH 仅获准按 `docs/M4_DEPLOY_TASK.md` 在 clean 工作树上 fast-forward 精确 SHA、更新 engine 容器、只读检查已有数据和对未审核的 13 条财报做 not_evaluable 验收，不得修改 .env、不自动审批、不重抓行情/财报、不执行 OTW 写入或任何交易。
+
+
+## 二十七、2026-11-10 M4 v0.5.0 真实部署及安全验收成功
+
+- DSH 任务 `ai-engine-m4-v05-deploy-49ac8cd2-20261109-v1` 已返回最终成功回执（会话 seq 1304，running=false），不是仅 accepted。
+- 服务器 `deploy/v0.2` HEAD=`49ac8cd24d85589ea3717eb438b4d8c3a71f6a0e`，工作树 clean；镜像 `ai-investment-engine:0.5`，healthz 200/version=0.5.0/orders_enabled=false，仅监听 `127.0.0.1:8018`，原 read-only/cap_drop/no-new-privileges 和持久数据卷保持。
+- 只读验收确认：行情 601118 2031 条、RU0 2143 条；公告 600 条、行业库存观察 1181 条、机器财报事实 13 条、历史回测及研究报告都保留。
+- 13 条财报事实仍为 `reviewed_by_human=false`、`unit_verified=false`、`assessment=unassessed`；老 v0.4 记录缺少 `scope_verified`，v0.5 按未核实处理，不应擅自回填为 true。
+- 用年初至今合并报表的 revenue 与 cost_of_revenue 实际 fact_id 试运行 M4 假设：`status=not_evaluable`、`computed_value=null`，原因包括人工审核、单位及统计口径未验证。本地仅产生一份审计报告 `reports/hypothesis/2bee9e50db2b411d9b537a58057db81e.json`。
+- 在未提供独立 X-Fact-Review-Token 时人工审核接口返回 HTTP 503；`ENGINE_FACT_REVIEW_TOKEN` 未设置，未产生事实审核报告，原始事实未修改。
+- DSH 报告未触碰 OTW、订单、调度、其他服务、secret/网络设置。M4 第一增量**代码与部署完成**，但真实财务事实仍未经过人工确认，完整估值数据源及独立风控/决策闭环尚未完成。

@@ -164,5 +164,5 @@ def run_research_cycle(
         "stage": "read_only_research",
     }
     if persist_report:
-        payload["audit"] = ReportStore(root).save("research_cycle", entity_id, payload)
+        payload["audit"] = ReportStore(root).save("research_cycle", "assessment", payload)
     return payload

@@ -465,3 +465,24 @@ def test_no_combination_can_enable_trading(overrides):
         "risk_blocked",
         "review_ready",
     }
+
+
+def test_structured_context_missing_evidence_and_warnings_are_preserved():
+    ctx = context(
+        missing=({"evidence_type": "industry_observations",
+                  "entity_id": "601118",
+                  "reason": "no linked verified inventory observations"},),
+        warnings=({"code": "inventory_unverified",
+                   "message": "reported inventory source has unknown statistical scope"},),
+    )
+    result = synthesize_decision_report(
+        context=ctx,
+        hypothesis_results=[hypothesis_result()],
+        risk_report=None,
+        valuation_result=None,
+    )
+    assert result["decision_status"] == "insufficient_evidence"
+    assert any("no linked verified inventory observations" in reason
+               for reason in result["missing_evidence"])
+    assert any("inventory_unverified" in flag for flag in result["risk_flags"])
+    assert result["action"] == "no_trade"

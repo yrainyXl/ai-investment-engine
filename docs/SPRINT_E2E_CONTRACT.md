@@ -29,7 +29,7 @@ A 导出 `build_research_context(*, root: str|Path, entity_id: str, as_of: datet
      "retrieved_at":"...", "reviewed_at":null,"eligible_for_assessment":false,"eligibility_reason":"..."}
   ],
   "industry_observations": [],
-  "missing_evidence": ["..."],
+  "missing_evidence": [{"evidence_type":"financial_facts","entity_id":"601118","reason":"..."}],
   "provenance_warnings": ["..."]
 }
 ```

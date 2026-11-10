@@ -19,6 +19,7 @@ from .otw_client import OTWReadClient, OTWError
 from .pipeline import run_pipeline
 from .research import build_research_snapshot
 from .report_store import ReportStore
+from .e2e_pipeline import HypothesisFactBinding, ResearchCycleError, ResearchHypothesis, run_research_cycle
 from .hypotheses import HypothesisDefinition, HypothesisError, HypothesisVariable, evaluate_hypothesis
 from .scenarios import ScenarioDefinition, evaluate_scenarios
 
@@ -110,6 +111,20 @@ class HypothesisEvaluationRequest(BaseModel):
 
 class HypothesisScenariosRequest(HypothesisEvaluationRequest):
     scenarios: list[ScenarioDefinitionPayload] = Field(min_length=1, max_length=20)
+
+
+class ResearchCycleHypothesisPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    hypothesis: HypothesisDefinitionPayload
+    fact_refs: list[HypothesisFactReferencePayload] = Field(min_length=1, max_length=32)
+
+
+class ResearchCycleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_id: str = Field(min_length=1, max_length=128)
+    asset_class: Literal["stock", "etf", "fund"] = "stock"
+    as_of: str | None = None
+    hypotheses: list[ResearchCycleHypothesisPayload] = Field(default_factory=list, max_length=20)
 
 
 def _authorize(authorization: str | None, *, otw_access: bool = False) -> None:
@@ -433,6 +448,35 @@ def review_financial_fact_endpoint(
         }
     except EvidenceError as exc:
         raise HTTPException(404 if "not found" in str(exc) else 422, str(exc)) from exc
+
+
+@app.post("/v1/research/cycle")
+def run_read_only_research_cycle(req: ResearchCycleRequest,
+                                authorization: str | None = Header(default=None)):
+    """One read-only research cycle. Missing reviewed evidence fails closed."""
+    _authorize(authorization)
+    cutoff = _as_of(req.as_of)
+    specs = []
+    for item in req.hypotheses:
+        payload = item.hypothesis.model_dump()
+        payload["variables"] = tuple(payload["variables"])
+        payload["weights"] = tuple(payload["weights"])
+        definition = HypothesisDefinition(**payload)
+        refs = tuple(HypothesisFactBinding(
+            variable_id=ref.variable_id, fact_id=ref.fact_id,
+            expected_metric=ref.expected_metric,
+            expected_period_type=ref.expected_period_type,
+            expected_statement_scope=ref.expected_statement_scope,
+        ) for ref in item.fact_refs)
+        specs.append(ResearchHypothesis(definition=definition, bindings=refs))
+    try:
+        return run_research_cycle(
+            root=os.getenv("ENGINE_DATA_DIR", "data"),
+            entity_id=req.entity_id, asset_class=req.asset_class,
+            as_of=cutoff, hypotheses=specs, persist_report=True,
+        )
+    except (ResearchCycleError, HypothesisError, EvidenceError) as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/v1/hypotheses/evaluate")

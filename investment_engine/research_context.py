@@ -12,7 +12,7 @@ Schema version 1 contract::
     ) -> dict
 
     {
-      "schema_version": 1,
+      "schema_version": "1",
       "entity_id": str,
       "asset_class": "stock" | "etf" | "future",
       "as_of": <ISO-8601 timestamp with timezone>,
@@ -54,7 +54,7 @@ from .evidence import EvidenceStore, _parse_aware
 from .financials import FinancialFactStore
 from .market_data import MarketDataError, MarketDataStore, completed_daily_bars
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = "1"
 SUPPORTED_ASSET_CLASSES = ("stock", "etf", "future")
 ENTITY_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,24}")
 SHANGHAI = ZoneInfo("Asia/Shanghai")

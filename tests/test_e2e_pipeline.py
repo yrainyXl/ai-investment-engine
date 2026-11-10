@@ -89,7 +89,7 @@ def test_second_industry_uses_identical_pipeline_not_601118_rules(tmp_path):
 
 def test_no_cached_etf_data_remains_unavailable_not_fabricated(tmp_path):
     result = run_research_cycle(
-        root=tmp_path, entity_id="ETF:510300", asset_class="etf",
+        root=tmp_path, entity_id="510300", asset_class="etf",
         as_of=datetime.now(timezone.utc), persist_report=False,
     )
     assert result["context"]["data_status"] == "unavailable"

@@ -291,3 +291,13 @@ DSH 实际状态：
 - 用年初至今合并报表的 revenue 与 cost_of_revenue 实际 fact_id 试运行 M4 假设：`status=not_evaluable`、`computed_value=null`，原因包括人工审核、单位及统计口径未验证。本地仅产生一份审计报告 `reports/hypothesis/2bee9e50db2b411d9b537a58057db81e.json`。
 - 在未提供独立 X-Fact-Review-Token 时人工审核接口返回 HTTP 503；`ENGINE_FACT_REVIEW_TOKEN` 未设置，未产生事实审核报告，原始事实未修改。
 - DSH 报告未触碰 OTW、订单、调度、其他服务、secret/网络设置。M4 第一增量**代码与部署完成**，但真实财务事实仍未经过人工确认，完整估值数据源及独立风控/决策闭环尚未完成。
+
+
+## 二十八、2026-11-10 M5 独立风险评估核心已合并
+
+- PR #14 `feat(M5): provider-neutral hypothetical portfolio risk core` 已通过 GitHub Actions CI（run #387 success），以 squash merge 合并至 main，merge SHA `153b4f29af2e13fed91097a548555d70684cc3df`。
+- 新增 `investment_engine/risk.py`：通用的 `HypotheticalPosition`、`RiskLimits`、`EquityObservation`、`StressShock` 和 `assess_hypothetical_risk`；能够计算证券/行业集中度、现金与风险资产权重、在有效权益历史存在时的最大回撤、压力情景收益与阈值命中。
+- 新增 `tests/test_risk.py`，测试多行业/ETF 合成仓位、Decimal 权重、行业聚合、情景冲击、历史回撤、未来数据、负仓位、币种不一致及无历史时不得伪造回撤。
+- 本次是**纯计算、假设输入**增量：不接真实账户/OTW、不联网、不创建 API、不生成交易指令；`eligible_for_trading=false`。尚无真实仓位 provenance、VaR、流动性/相关性/杠杆模型和人工审批闭环。
+- 服务器最新经 DSH 实际确认仍是 v0.5.0 / SHA `49ac8cd24d85589ea3717eb438b4d8c3a71f6a0e`；PR #14 的代码尚未部署服务器。由于风险模块未接 API/执行入口，暂不单独重建容器；待后续 provenance 与只读风控 API 验收齐备后一起部署。
+- 详细限制参见 `docs/M5_RISK_CORE.md`。下一增量优先做有来源认证与时点控制的只读持仓 resolver，绝不直接信任客户端宣称“真实持仓”的数据。

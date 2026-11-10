@@ -170,7 +170,7 @@ def test_two_industries_stay_isolated_and_reviews_are_not_upgraded(tmp_path):
     liquor = build_research_context(root=root, entity_id=LIQUOR, as_of=AS_OF)
 
     assert set(liquor) == TOP_LEVEL_KEYS
-    assert liquor["schema_version"] == 1
+    assert liquor["schema_version"] == "1"
     assert liquor["entity_id"] == LIQUOR
     assert liquor["asset_class"] == "stock"
     assert liquor["as_of"] == AS_OF.isoformat()

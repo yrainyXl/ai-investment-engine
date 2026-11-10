@@ -1,4 +1,4 @@
-# AI Investment Engine v0.5
+# AI Investment Engine v0.6
 
 OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：读取 OTW 真实账户上下文，通过 AKShare 获取公开日线数据，建立可追溯的数据缓存，评估投资假设并运行透明的基准回测。不会写入 OTW runs/orders/documents，也不会连接券商或下真实订单。
 
@@ -7,6 +7,7 @@ OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：
 - [施工总纲（目标架构、ChatGPT / DSH / OTW 职责、审批与派发协议）](docs/CONSTRUCTION_PLAYBOOK.md)
 - [任务进度台账（基于真实 DSH 返回更新）](docs/PROGRESS_LEDGER.md)
 - [M4 投资假设验证与估值设计](docs/M4_HYPOTHESIS_AND_VALUATION.md)
+- [端到端研究 Sprint 协作与验收契约](docs/SPRINT_E2E_CONTRACT.md)
 - [DSH 连接只读能力探查 Issue #2](https://github.com/yrainyXl/ai-investment-engine/issues/2)
 
 部署和开发状态分开记录；GitHub 合并不等于服务器上线，Issue 创建不等于 DSH 已收到任务。
@@ -24,6 +25,23 @@ OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：
 - 历史回测：买入持有基准、SMA 趋势策略、手续费/滑点、年化收益、波动率、Sharpe、最大回撤、正收益日比例、仓位暴露和换手。
 - 回测信号使用收盘后数据，下一交易日开盘执行；不使用同一根 K 线未来收盘价。
 - Docker 数据持久化挂载，PyPI 镜像通过 build arg 配置。
+
+## v0.6 单次研究闭环（只读）
+
+新增 `POST /v1/research/cycle`：从现有本地数据读取金融事实/行业观测/行情质量，按指定 as_of 校验来源，运行可选的 fact_id 绑定投资假设，经过风险与估值缺口检查后产出可解释的研究状态和 `/data/reports/research_cycle` 本地审计记录。**无可信持仓/估值或未人工复核时，状态必须是 `insufficient_evidence`，而不是买卖建议。**
+
+例：只读查看已缓存标的资料与缺失项（不修改事实、不需要人工审批）：
+
+~~~bash
+curl -sS -X POST http://127.0.0.1:8018/v1/research/cycle \
+  -H "Authorization: Bearer ${ENGINE_API_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"entity_id":"601118","asset_class":"stock"}'
+~~~
+
+同一接口可用 `entity_id=510300,asset_class=etf` 检查 ETF 数据：没有该资产可靠本地记录时明确返回 `unavailable` 和缺失原因。假设计算按 `hypotheses[].hypothesis` 和 `hypotheses[].fact_refs` 引用本地财报事实；客户端不得自报已审核状态。
+
+当前闭环是研究层的**可复现 fail-closed 验证**，不是已验证的真实持仓风险或完整估值。2026-Q3 财务事实仍待人工作实，行业库存口径未核实；风险模块的假设持仓不等于 OTW 真实持仓。所有结论固定 `action=no_trade`、`orders_enabled=false`、`eligible_for_trading=false`。见 [并行工作契约](docs/SPRINT_E2E_CONTRACT.md) 和 [单次部署验收](docs/SPRINT_E2E_DEPLOY.md)。
 
 ## 安装
 

@@ -475,7 +475,7 @@ def run_read_only_research_cycle(req: ResearchCycleRequest,
             entity_id=req.entity_id, asset_class=req.asset_class,
             as_of=cutoff, hypotheses=specs, persist_report=True,
         )
-    except (ResearchCycleError, HypothesisError, EvidenceError) as exc:
+    except (ResearchCycleError, HypothesisError, EvidenceError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
 

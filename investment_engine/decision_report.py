@@ -167,6 +167,10 @@ def _inspect_context(
             if _is_text(item):
                 blocked = True
                 _append(missing, item)
+            elif isinstance(item, dict) and _is_text(item.get("reason")):
+                blocked = True
+                evidence_type = str(item.get("evidence_type") or "unknown")
+                _append(missing, f"{evidence_type}: {item['reason']}")
             else:
                 blocked = True
                 _append(missing, "context.missing_evidence_malformed")
@@ -174,13 +178,14 @@ def _inspect_context(
     warnings = context.get("provenance_warnings") or []
     if isinstance(warnings, (list, tuple)):
         for warning in warnings:
-            # Warnings are surfaced for transparency and do not by themselves
-            # block review; the blocking channels are data_status,
-            # missing_evidence and unreviewed facts above.
-            _append(
-                flags,
-                f"provenance_warning:{warning}" if _is_text(warning) else "provenance_warning",
-            )
+            # Preserve Worker A's structured warnings and do not silently erase
+            # their source/quality explanations.
+            if _is_text(warning):
+                _append(flags, f"provenance_warning:{warning}")
+            elif isinstance(warning, dict) and _is_text(warning.get("code")):
+                _append(flags, f"provenance_warning:{warning['code']}: {warning.get('message', '')}")
+            else:
+                _append(flags, "provenance_warning_malformed")
     return blocked
 
 

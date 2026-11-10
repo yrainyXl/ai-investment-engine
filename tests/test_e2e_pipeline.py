@@ -102,11 +102,16 @@ def test_wrong_asset_binding_is_rejected(tmp_path):
     store = FinancialFactStore(tmp_path)
     store.save([_fact("600519", "gross_profit", "200"),
                 _fact("600519", "revenue", "1000")])
+    foreign = _hypothesis("601118")
+    foreign_refs = tuple(HypothesisFactBinding(
+        ref.variable_id, ref.fact_id.replace("601118", "600519"),
+        ref.expected_metric, ref.expected_period_type, ref.expected_statement_scope,
+    ) for ref in foreign.bindings)
     with pytest.raises(ResearchCycleError, match="belongs to another asset"):
         run_research_cycle(
             root=tmp_path, entity_id="601118", asset_class="stock",
             as_of=datetime.now(timezone.utc),
-            hypotheses=(_hypothesis("601118"),),
+            hypotheses=(ResearchHypothesis(foreign.definition, foreign_refs),),
         )
 
 

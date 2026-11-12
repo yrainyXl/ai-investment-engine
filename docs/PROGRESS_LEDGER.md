@@ -301,3 +301,27 @@ DSH 实际状态：
 - 本次是**纯计算、假设输入**增量：不接真实账户/OTW、不联网、不创建 API、不生成交易指令；`eligible_for_trading=false`。尚无真实仓位 provenance、VaR、流动性/相关性/杠杆模型和人工审批闭环。
 - 服务器最新经 DSH 实际确认仍是 v0.5.0 / SHA `49ac8cd24d85589ea3717eb438b4d8c3a71f6a0e`；PR #14 的代码尚未部署服务器。由于风险模块未接 API/执行入口，暂不单独重建容器；待后续 provenance 与只读风控 API 验收齐备后一起部署。
 - 详细限制参见 `docs/M5_RISK_CORE.md`。下一增量优先做有来源认证与时点控制的只读持仓 resolver，绝不直接信任客户端宣称“真实持仓”的数据。
+
+## 二十九、2026-11-12 v0.6 只读研究闭环真实部署验收
+
+- PR #15 已合并至 main，SHA `e7762f2e494fabad3491d90c455d5ef8fbc1a774`；DSH 任务 `ai-engine-v06-prod-deploy-20261112-v1` 已收到明确 succeeded 终态。
+- 生产仅更新 Investment Engine：`deploy/v0.2` SHA `e7762f2`，镜像 `ai-investment-engine:0.6`，`/healthz` HTTP 200/version 0.6.0/`orders_enabled=false`，仅 `127.0.0.1:8018`；原 readonly rootfs、cap_drop、安全约束、`./data:/data` 保留。
+- 真实数据保留：601118 qfq 2031 条、RU0 2143 条、CNINFO 公告 600 条、99qh 观察 1181 条、2026-Q3 财务事实 13 条。股票与 ETF 的 `POST /v1/research/cycle` 只读验收通过：股票虽有记录但 13 条事实未经审核，ETF 未缓存则 unavailable；均禁止交易。
+- 仍未建立真实持仓风控/完整估值，也未人工审核财务事实。未修改 OTW、交易、调度、凭据和其他服务。
+
+## 三十、2026-11-12 v0.7 两个 Worker 并行研发、集成和 CI 完成
+
+- Worker A：`agent_runtime.py`、测试、文档；本地提交 `11024d1`，27 项测试通过。可替换模型研究/反方/风险审核，来源和 as_of 门禁、调用用量/成本、异常 fail-closed；没有真实付费模型调用或交易权。
+- Worker B：`strategy_experiments.py`、测试、文档；本地提交 `9351a7e`，31 项测试通过。多策略/组合隔离、IS/OOS 与 walk-forward、基准/成本、复现记录；只读研究，不提供交易资格。
+- 独立集成 worktree `feat/v07-agents-experiments-integration`：两模块 cherry-pick 后新增 6 项集成测试与验收文档，共 8 个文件，完整本地 `pytest` **265 passed, 1 warning**（本地 SHA `cd7d8c2`）；合成两类资产，模型使用 Stub。
+- DSH 服务器无法直接推送 GitHub，改由已认证 GitHub Connector 将逐项校验的完整 8 个文件传至远程 PR #16；远程分支提交 `013490b2c4d3fa7e24d4b455c575554bd8f835ef`。
+- GitHub Actions **CI #433 completed/success**，PR #16 已 squash merge `main`，合并 SHA **`85657beeacb52fedde825f3dab60dc2518f6752c`**。代码和 CI 完成不意味着部署完成。
+- 新模块暂为独立研究库，未在生产 API 中激活 LLM 调用、未接 OTW 写/模拟下单、未增加调度。所有研究固定 `action=no_trade`、`eligible_for_trading=false`、`orders_enabled=false`。
+
+## 三十一、2026-11-12 v0.7 生产部署受阻，旧版保持正常
+
+- 已真实派发 DSH 任务 `ai-engine-v07-prod-deploy-85657bee-20261112-v1`，并回读终态 **blocked**，不能记为 deployed 或 succeeded。
+- Gate0 只读预检：生产仍在 `deploy/v0.2` / `e7762f2` / 镜像 0.6，工作树 clean，healthz HTTP200，数据缓存 601118 2031、RU0 2143、CNINFO 600、99qh 1181、财报 13、reports 9，全部保留。
+- 唯一一次有界 `timeout 60 git fetch origin` 因 GitHub 网络问题退出 124，`origin/main` 仍是旧 SHA，目标 `85657bee` 未能在服务器取得，无法证明属于 main/可 fast-forward。
+- 后续 Gate1-4 **均未执行**，没有构建、重启、升级、回滚、部署新版，也未修改 OTW、secret、网络、策略、订单、定时任务或其他容器。
+- 下一步：在服务器能安全获取指定 Git SHA 后重新进行 Gate0，逐项做固定 SHA、ff-only、一次构建、健康/测试/数据/边界验收。避免重复网络排查和未验证的 tarball 手工替换。保持 v0.6 正常运行直至成功验收。

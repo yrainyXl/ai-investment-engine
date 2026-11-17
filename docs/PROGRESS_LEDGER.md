@@ -325,3 +325,12 @@ DSH 实际状态：
 - 唯一一次有界 `timeout 60 git fetch origin` 因 GitHub 网络问题退出 124，`origin/main` 仍是旧 SHA，目标 `85657bee` 未能在服务器取得，无法证明属于 main/可 fast-forward。
 - 后续 Gate1-4 **均未执行**，没有构建、重启、升级、回滚、部署新版，也未修改 OTW、secret、网络、策略、订单、定时任务或其他容器。
 - 下一步：在服务器能安全获取指定 Git SHA 后重新进行 Gate0，逐项做固定 SHA、ff-only、一次构建、健康/测试/数据/边界验收。避免重复网络排查和未验证的 tarball 手工替换。保持 v0.6 正常运行直至成功验收。
+
+## 三十二、2026-11-17 v0.7 恢复部署及验收成功
+
+- DSH 恢复任务 `ai-engine-v07-deploy-recovery-20261117-v1` 实际终态 succeeded，会话 seq 1774，running=false。唯一一次有界 GitHub fetch 成功，耗时 3s，未使用备用 API 重建路径。
+- Gate0-4 全部通过。实际生产 `deploy/v0.2` HEAD `85657beeacb52fedde825f3dab60dc2518f6752c`，tree `0d4bb7c2e9a19bdb9ed4baeffab465bec76e7d72`，clean。新镜像 ID `085c518f2ff6`，旧镜像回滚指针 `c0c16d486269`。
+- 发布标识缺口：compose 镜像 tag 仍 `ai-investment-engine:0.6`，healthz version 仍 0.6.0；实际 v0.7 新代码已入镜像并验证 import。后续修复版本元数据，不得仅凭 tag 判断实际部署 SHA。
+- 服务器实际测试：Agent 27、Strategy 31、integration 6；全量 265 passed, 1 warning（第三方弃用提示）。使用 Stub，未调用付费模型。股票研究 available/no_trade，ETF unavailable/no_trade。
+- 持久数据保留：股票行情 2031、RU0 2143、财务事实 13、公告 600、库存观察 1181、报告 11。13 条财务事实全部未人工审核，review token 未设置。17 条 API 路由，无新增 Agent/策略执行端点，订单关闭；无 OTW 写入、交易或调度变更。
+- 新模块是可用研究内核，而非已接真实 LLM、账户、行情自动更新或交易的完整产品。下一阶段补足 provider-neutral 真实数据与模型客户端接入、只读 API/审计契约、真实证据验证及版本元数据；生产交易仍冻结。

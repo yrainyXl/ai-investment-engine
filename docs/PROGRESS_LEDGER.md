@@ -343,3 +343,11 @@ DSH 实际状态：
 - ChatGPT 当前实际调用 OTW MCP catalog、GET strategies、GET 单个 active strategy context，确认账户及 holdings / portfolio / strategy 结构可读；只将字段结构用于开发，不记录账户数值、不将私有持仓发送给 LLM，未执行 OTW 写入。账户报价和风险口径仍须验证，历史 context 不得由当前快照回填。
 - 两 worker 只在仓库内 git-excluded 独立 worktree 实现与单测，不触碰生产容器、缓存、网络、secrets 或调度；真实付费 LLM 未调用。模型凭据、授权和费用封顶仍需单独确认；未配置与无合格证据均必须 fail-closed。未经人工审核的事实不能自动升级为合格证据。
 - 统一集成门槛：代码审查、服务器端配置而非请求内提供密钥/任意 URL、既有 ENGINE_API_TOKEN 鉴权和必要独立权限限制、源数据 provenance、只读报告、股票及 ETF 合成回归和真实输入缺口验证；接入现有 research cycle/一站式研究入口及实验执行接口，统一修复项目/API/镜像版本至 v0.8，完整 CI 后再提交一次发布审批和部署验收。真实/模拟交易均保持冻结，不新增 OTW 写入。当前状态为开发 running；没有完成、合并、CI 或部署本轮功能。
+
+## 三十四、2026-11-17 v0.8 并行开发中断与真实状态
+
+- 两个 DSH 开发会话均返回 `running=false`，但 **turn_ends 为 error: QUOTA / HTTP 402 / Insufficient Balance**，并非正常完工。对应原会话 `session-codex-ai-engine-v08-worker-a-create-20261117-v1` seq 501 与 `session-codex-ai-engine-v08-worker-b-create-20261117-v1` seq 494。没有必要重复在同一配额故障下派发。
+- Worker A 已完成五个新文件与本地 Git commit `26c05a25ea86d8cafdbdfb1e71f16edfb08c0a91`，本地全量 `pytest` **342 passed, 1 warning**。提交存在于服务器独立 worktree `.worktrees/worker-a-v08-model`；未推送 GitHub，未执行真实付费 LLM 请求或上线。
+- Worker B 在 `.worktrees/worker-b-v08-inputs` 实现 `research_inputs.py` 等内容，已有语法编译检查。一次实际 ETF 510300 公开行情只读探针得到 2026-10-19 至 2026-11-17 共 22 条无复权价格，来源 `akshare.eastmoney.fund_etf_hist_em`，质量检查有效，独立 scratch 缓存而非生产数据。其最后可见工作是修正数据质量检查代码；**未收到完成提交 SHA/完整测试成功/最终验收回执**，不能写 done。
+- GitHub main 当前 `5cb87ac8dfb032d87b87d50a8228d1be3f627e8f`（仅进度文档），尚无 v0.8 PR、远程 CI 或生产部署；生产 v0.7 继续保持。
+- 阻塞恢复：需让 DSH 模型服务恢复可用额度或使用已获授权的可用模型后，先在现有 B worktree 提交/运行完整测试并回传 A/B 审计证据，再一次性集成 GitHub PR/CI，最后决定独立受控部署。不得把 402 当作网络拉取故障，不得擅自调整付费额度或 API 凭据。

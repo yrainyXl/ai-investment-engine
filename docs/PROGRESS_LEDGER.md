@@ -334,3 +334,12 @@ DSH 实际状态：
 - 服务器实际测试：Agent 27、Strategy 31、integration 6；全量 265 passed, 1 warning（第三方弃用提示）。使用 Stub，未调用付费模型。股票研究 available/no_trade，ETF unavailable/no_trade。
 - 持久数据保留：股票行情 2031、RU0 2143、财务事实 13、公告 600、库存观察 1181、报告 11。13 条财务事实全部未人工审核，review token 未设置。17 条 API 路由，无新增 Agent/策略执行端点，订单关闭；无 OTW 写入、交易或调度变更。
 - 新模块是可用研究内核，而非已接真实 LLM、账户、行情自动更新或交易的完整产品。下一阶段补足 provider-neutral 真实数据与模型客户端接入、只读 API/审计契约、真实证据验证及版本元数据；生产交易仍冻结。
+
+## 三十三、2026-11-17 v0.8 业务闭环开发派发
+
+- 基线：生产代码 `85657beeacb52fedde825f3dab60dc2518f6752c` (v0.7，健康/265 测试通过)；本轮启动前 GitHub main `43102a1013cac8019dfc10b38c2b29626533c862`，只增加验收台账。实际开发基线以各 worker 回传为准。
+- Worker A（`session-codex-ai-engine-v08-worker-a-create-20261117-v1` / `ai-engine-v08-worker-a-implementation-20261117-v1`）：可配置真实 OpenAI-compatible LLM transport、成本与超时约束、`run_agent_analysis` 研究执行及审计报告；独占 model_client/agent_execution 和测试文档。实际 accepted、回查 running=true。
+- Worker B（`session-codex-ai-engine-v08-worker-b-create-20261117-v1` / `ai-engine-v08-worker-b-implementation-20261117-v1`）：真实财务和价格证据的估值 resolver、OTW 纸面账户只读与来源/时效/币种门禁、公开 ETF 行情质量探针（独立临时缓存）；独占 research_inputs 和测试文档。实际 accepted、回查 running=true。
+- ChatGPT 当前实际调用 OTW MCP catalog、GET strategies、GET 单个 active strategy context，确认账户及 holdings / portfolio / strategy 结构可读；只将字段结构用于开发，不记录账户数值、不将私有持仓发送给 LLM，未执行 OTW 写入。账户报价和风险口径仍须验证，历史 context 不得由当前快照回填。
+- 两 worker 只在仓库内 git-excluded 独立 worktree 实现与单测，不触碰生产容器、缓存、网络、secrets 或调度；真实付费 LLM 未调用。模型凭据、授权和费用封顶仍需单独确认；未配置与无合格证据均必须 fail-closed。未经人工审核的事实不能自动升级为合格证据。
+- 统一集成门槛：代码审查、服务器端配置而非请求内提供密钥/任意 URL、既有 ENGINE_API_TOKEN 鉴权和必要独立权限限制、源数据 provenance、只读报告、股票及 ETF 合成回归和真实输入缺口验证；接入现有 research cycle/一站式研究入口及实验执行接口，统一修复项目/API/镜像版本至 v0.8，完整 CI 后再提交一次发布审批和部署验收。真实/模拟交易均保持冻结，不新增 OTW 写入。当前状态为开发 running；没有完成、合并、CI 或部署本轮功能。

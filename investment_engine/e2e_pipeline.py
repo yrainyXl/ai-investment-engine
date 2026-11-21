@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from .financials import FinancialFactStore
 from .hypotheses import (
@@ -49,7 +49,7 @@ def _as_of_datetime(value: datetime) -> datetime:
 
 def _evaluate_bound_hypothesis(
     *,
-    store: FinancialFactStore,
+    lookup_fact: Callable[[str], dict[str, Any] | None],
     entity_id: str,
     as_of: datetime,
     spec: ResearchHypothesis,
@@ -66,7 +66,7 @@ def _evaluate_bound_hypothesis(
         binding = bindings.get(variable_id)
         if binding is None:
             continue  # evaluate_hypothesis reports missing required variables.
-        fact = store.get_by_id(binding.fact_id, as_of=as_of)
+        fact = lookup_fact(binding.fact_id)
         if fact is None:
             continue  # Unknown/unpublished fact => not_evaluable, never a fake fact.
         if str(fact.get("symbol")) != entity_id:
@@ -133,7 +133,8 @@ def run_research_cycle(
     for spec in hypotheses:
         try:
             evaluations.append(_evaluate_bound_hypothesis(
-                store=fact_store, entity_id=entity_id, as_of=cutoff, spec=spec,
+                lookup_fact=lambda fact_id: fact_store.get_by_id(fact_id, as_of=cutoff),
+                entity_id=entity_id, as_of=cutoff, spec=spec,
             ))
         except HypothesisError as exc:
             raise ResearchCycleError(str(exc)) from exc

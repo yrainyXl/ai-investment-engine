@@ -403,6 +403,7 @@ def build_research_context(
     entity_id: str,
     as_of: datetime,
     asset_class: str = "stock",
+    include_market: bool = True,
 ) -> dict[str, Any]:
     """Assemble the schema-v1 research context from local stores only.
 
@@ -425,7 +426,15 @@ def build_research_context(
     observations_raw, unlinked, observations_present = _industry_observations(
         base, entity, as_of,
     )
-    market = _market_bars(base, entity, resolved_asset_class, as_of)
+    market = (
+        _market_bars(base, entity, resolved_asset_class, as_of)
+        if include_market
+        else {
+            "present": False, "filename": None, "adjustment": None, "visible_bars": [],
+            "excluded_future_bars": 0, "excluded_unfetched_bars": 0,
+            "unknown_fetch_time_bars": 0, "quality": None,
+        }
+    )
 
     facts = [
         {**item, "quality_flags": _fact_quality_flags(item)}

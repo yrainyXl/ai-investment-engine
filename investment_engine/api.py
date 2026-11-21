@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from hmac import compare_digest
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from . import __version__, release_metadata
 from .analysis import parse_time
 from .backtest import BacktestError, run_backtest
 from .evidence import EvidenceError, EvidenceStore
@@ -21,9 +22,10 @@ from .research import build_research_snapshot
 from .report_store import ReportStore
 from .e2e_pipeline import HypothesisFactBinding, ResearchCycleError, ResearchHypothesis, run_research_cycle
 from .hypotheses import HypothesisDefinition, HypothesisError, HypothesisVariable, evaluate_hypothesis
+from .research_analysis import analyze_research
 from .scenarios import ScenarioDefinition, evaluate_scenarios
 
-app = FastAPI(title="AI Investment Engine", version="0.6.0")
+app = FastAPI(title="AI Investment Engine", version=__version__)
 
 
 class PreviewRequest(BaseModel):
@@ -127,6 +129,20 @@ class ResearchCycleRequest(BaseModel):
     hypotheses: list[ResearchCycleHypothesisPayload] = Field(default_factory=list, max_length=20)
 
 
+class ExperimentWindows(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    is_start: date
+    is_end: date
+    oos_start: date
+    oos_end: date
+
+
+class ResearchAnalyzeRequest(ResearchCycleRequest):
+    entity_id: str = Field(pattern=r"^[A-Za-z0-9._-]{1,24}$")
+    asset_class: Literal["stock", "etf"] = "stock"
+    experiment: ExperimentWindows | None = None
+
+
 def _authorize(authorization: str | None, *, otw_access: bool = False) -> None:
     configured_token = os.getenv("ENGINE_API_TOKEN", "")
     if not configured_token:
@@ -211,7 +227,7 @@ def _as_of(value: str | None) -> datetime:
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, "version": "0.6.0"}
+    return {"status": "ok", "mode": "read_only_preview", "orders_enabled": False, **release_metadata()}
 
 
 @app.get("/v1/strategies")
@@ -450,14 +466,9 @@ def review_financial_fact_endpoint(
         raise HTTPException(404 if "not found" in str(exc) else 422, str(exc)) from exc
 
 
-@app.post("/v1/research/cycle")
-def run_read_only_research_cycle(req: ResearchCycleRequest,
-                                authorization: str | None = Header(default=None)):
-    """One read-only research cycle. Missing reviewed evidence fails closed."""
-    _authorize(authorization)
-    cutoff = _as_of(req.as_of)
+def _research_hypotheses(hypotheses: list[ResearchCycleHypothesisPayload]) -> list[ResearchHypothesis]:
     specs = []
-    for item in req.hypotheses:
+    for item in hypotheses:
         payload = item.hypothesis.model_dump()
         payload["variables"] = tuple(payload["variables"])
         payload["weights"] = tuple(payload["weights"])
@@ -469,11 +480,41 @@ def run_read_only_research_cycle(req: ResearchCycleRequest,
             expected_statement_scope=ref.expected_statement_scope,
         ) for ref in item.fact_refs)
         specs.append(ResearchHypothesis(definition=definition, bindings=refs))
+    return specs
+
+
+@app.post("/v1/research/analyze")
+def analyze_research_endpoint(
+    req: ResearchAnalyzeRequest, authorization: str | None = Header(default=None),
+):
+    """Analyze cached point-in-time evidence and persist a read-only research report."""
+    _authorize(authorization)
+    cutoff = _as_of(req.as_of) if req.as_of is not None else None
+    windows = None
+    if req.experiment is not None:
+        item = req.experiment
+        windows = (item.is_start, item.is_end, item.oos_start, item.oos_end)
+    try:
+        return analyze_research(
+            root=os.getenv("ENGINE_DATA_DIR", "data"), entity_id=req.entity_id,
+            asset_class=req.asset_class, as_of=cutoff,
+            hypotheses=_research_hypotheses(req.hypotheses), experiment_windows=windows,
+        )
+    except (ResearchCycleError, HypothesisError, EvidenceError, MarketDataError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/v1/research/cycle")
+def run_read_only_research_cycle(req: ResearchCycleRequest,
+                                authorization: str | None = Header(default=None)):
+    """One read-only research cycle. Missing reviewed evidence fails closed."""
+    _authorize(authorization)
+    cutoff = _as_of(req.as_of)
     try:
         return run_research_cycle(
             root=os.getenv("ENGINE_DATA_DIR", "data"),
             entity_id=req.entity_id, asset_class=req.asset_class,
-            as_of=cutoff, hypotheses=specs, persist_report=True,
+            as_of=cutoff, hypotheses=_research_hypotheses(req.hypotheses), persist_report=True,
         )
     except (ResearchCycleError, HypothesisError, EvidenceError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc

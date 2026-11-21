@@ -409,7 +409,7 @@ def _rationale(
     ]
     if decision_status == "risk_blocked":
         lines.append(
-            "An assessed hypothetical risk report breached limits: "
+            "An assessed risk report breached limits: "
             + ", ".join(breaches)
             + "."
         )

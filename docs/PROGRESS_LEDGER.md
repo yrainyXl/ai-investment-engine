@@ -351,3 +351,12 @@ DSH 实际状态：
 - Worker B 在 `.worktrees/worker-b-v08-inputs` 实现 `research_inputs.py` 等内容，已有语法编译检查。一次实际 ETF 510300 公开行情只读探针得到 2026-10-19 至 2026-11-17 共 22 条无复权价格，来源 `akshare.eastmoney.fund_etf_hist_em`，质量检查有效，独立 scratch 缓存而非生产数据。其最后可见工作是修正数据质量检查代码；**未收到完成提交 SHA/完整测试成功/最终验收回执**，不能写 done。
 - GitHub main 当前 `5cb87ac8dfb032d87b87d50a8228d1be3f627e8f`（仅进度文档），尚无 v0.8 PR、远程 CI 或生产部署；生产 v0.7 继续保持。
 - 阻塞恢复：需让 DSH 模型服务恢复可用额度或使用已获授权的可用模型后，先在现有 B worktree 提交/运行完整测试并回传 A/B 审计证据，再一次性集成 GitHub PR/CI，最后决定独立受控部署。不得把 402 当作网络拉取故障，不得擅自调整付费额度或 API 凭据。
+
+## 三十五、2026-11-21 v0.8 Codex 集成
+
+- 从 GitHub main `b02b59381a9a2d8799cab61a086047e1ebf201ee` 启动集成分支 `feat/v08-research-integration`。先前 Worker 提交不在本地或 GitHub 分支中，以现有 v0.7 模块继续开发。
+- 两个 Codex Worker 分别负责模型执行、数据与账户风险。主分支负责统一 API、预注册实验、审计及验收。全程使用本地开发环境。
+- 已集成模型网关、数据输入、OTW REST GET 风险及统一 API。隔离基线 265 项测试通过，集成版 300 项测试通过（均含同一 Starlette TestClient 弃用提示）。三角色使用 Stub，股票及 ETF 均验证报告回读和独立 IS/OOS 实验。
+- 2026-11-21 北京时间从东方财富公开 K 线接口以 GET 方式读取各 10 条不复权日线，范围 2026-11-09 至 2026-11-20。以隔离缓存通过统一 API 实际回读两份报告，校验 OHLCV 与来源口径。估值缺必要证据，真实模型调用为零。
+- OTW 通过只读连接器核对真实账户响应结构，新服务 REST GET 认证与账户风险使用模拟传输验收。生产 REST 凭据和模型供应商实际付费连通性等待后续独立授权验证。
+- 发布代码固定 SHA `aa9bd618f0e249124aa38f27bdb589abd4c0dfb9`。本地与 GitHub 代码树哈希一致，部署以固定代码提交为准。生产操作按 [v0.8 部署验收单](V08_DEPLOY_ACCEPTANCE.md) 单独协调。

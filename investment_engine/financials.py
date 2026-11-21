@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 import re
 from calendar import monthrange
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -123,7 +123,9 @@ class FinancialFact:
         )
         if any(not value for value in required):
             raise EvidenceError("financial fact is missing required identity or provenance")
-        if self.period_type not in {"quarter", "year_to_date"}:
+        if self.period_type in {"ttm", "point_in_time"}:
+            self._validate_valuation_basis()
+        elif self.period_type not in {"quarter", "year_to_date"}:
             raise EvidenceError("unsupported financial fact period_type")
         if self.statement_scope not in {"consolidated"}:
             raise EvidenceError("unsupported financial statement scope")
@@ -143,6 +145,28 @@ class FinancialFact:
             raise EvidenceError("source_page must be a positive 1-based page number")
         if self.assessment not in {"supporting", "contradicting", "unassessed"}:
             raise EvidenceError("unsupported financial fact assessment")
+
+    def _validate_valuation_basis(self) -> None:
+        try:
+            start = date.fromisoformat(self.period_start)
+            end = date.fromisoformat(self.period_end)
+        except ValueError as exc:
+            raise EvidenceError("invalid valuation evidence period") from exc
+        if self.period_type == "ttm":
+            expected = {"earnings_per_share": ("CNY/share", "yuan_per_share")}
+            valid_period = (end - start).days in {364, 365}
+        else:
+            expected = {
+                "book_value_per_share": ("CNY/share", "yuan_per_share"),
+                "net_debt": ("CNY", "yuan"),
+                "shares_outstanding": ("shares", "shares"),
+            }
+            valid_period = start == end
+        if (
+            self.currency != "CNY" or not valid_period
+            or expected.get(self.metric) != (self.unit, self.value_scale)
+        ):
+            raise EvidenceError("invalid valuation evidence metric, period, currency or unit")
 
 
 def parse_quarterly_report_pages(

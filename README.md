@@ -1,4 +1,4 @@
-# AI Investment Engine v0.6
+# AI Investment Engine v0.8
 
 OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：读取 OTW 真实账户上下文，通过 AKShare 获取公开日线数据，建立可追溯的数据缓存，评估投资假设并运行透明的基准回测。不会写入 OTW runs/orders/documents，也不会连接券商或下真实订单。
 
@@ -26,7 +26,7 @@ OTW 外置投资研究引擎。当前定位是**只读研究与历史回测**：
 - 回测信号使用收盘后数据，下一交易日开盘执行；不使用同一根 K 线未来收盘价。
 - Docker 数据持久化挂载，PyPI 镜像通过 build arg 配置。
 
-## v0.6 单次研究闭环（只读）
+## 兼容入口：单次研究闭环（只读）
 
 新增 `POST /v1/research/cycle`：从现有本地数据读取金融事实/行业观测/行情质量，按指定 as_of 校验来源，运行可选的 fact_id 绑定投资假设，经过风险与估值缺口检查后产出可解释的研究状态和 `/data/reports/research_cycle` 本地审计记录。**无可信持仓/估值或未人工复核时，状态必须是 `insufficient_evidence`，而不是买卖建议。**
 
@@ -241,3 +241,66 @@ curl --fail http://127.0.0.1:8018/healthz
 - 当前仅支持 A 股、ETF 日线和国内期货日线；开放式公募基金单位净值、财报分业务拆分、库存多源交叉核对仍是后续工作。
 - 研究证据需要人工确认；当前没有 LLM Agent 自动抓取和自动判断事实。
 - 所有回测和研究输出均 eligible_for_trading=false。不能把回测结果当作真实成交能力或投资建议。
+
+## v0.8 统一投研与报告
+
+`POST /v1/research/analyze` 接受 A 股或 ETF 代码（例如 `601118.SH`、`510300`），
+沿用 `Authorization: Bearer $ENGINE_API_TOKEN`。提供带时区的 `as_of` 可重放历史证据。
+省略该字段时使用本次读取时点。接口读取引擎缓存、评估假设、按配置执行三个研究角色、
+计算可验证估值和账户风险并保存审计报告。响应中的 `audit.report_id` 可通过
+`GET /v1/reports/{report_id}` 查询，`GET /v1/reports?kind=research_analysis` 可列出历史。
+
+### 本地合成演示
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[api,test]'
+python -m examples.v08_demo > /tmp/engine-v08-demo.ndjson
+python -m pytest -q tests/test_v08_research_api.py
+```
+
+演示使用临时缓存和公开示例域名，分别调用股票和 ETF API。报告可通过临时服务正常查询，
+并逐行输出到 NDJSON。接口测试使用 HTTP Stub，覆盖三角色执行和证据门禁。示例中的
+`status=insufficient_evidence` 保留了估值、账户或人工复核缺口。
+
+### 真实缓存与 API 调用
+
+使用既有同步入口为目标资产准备不复权行情。真实数据和凭据保留在本地环境。
+
+```bash
+python -m pip install -e '.[api,market-data,fundamentals]'
+export ENGINE_DATA_DIR="$PWD/data"
+export ENGINE_GIT_SHA="$(git rev-parse HEAD)"
+python -m investment_engine.market_cli sync --symbol 601118 --asset-type stock --adjustment none
+python -m investment_engine.market_cli sync --symbol 510300 --asset-type etf --adjustment none
+export ENGINE_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+python -m uvicorn investment_engine.api:app --host 127.0.0.1 --port 8018
+```
+
+在继承相同 `ENGINE_API_TOKEN` 的 shell 中调用 API：
+
+```bash
+curl --fail-with-body http://127.0.0.1:8018/v1/research/analyze \
+  -H "Authorization: Bearer $ENGINE_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"entity_id":"601118.SH","asset_class":"stock"}'
+curl --fail-with-body http://127.0.0.1:8018/v1/research/analyze \
+  -H "Authorization: Bearer $ENGINE_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"entity_id":"510300","asset_class":"etf","experiment":{"is_start":"2024-01-01","is_end":"2024-12-31","oos_start":"2025-01-01","oos_end":"2025-12-31"}}'
+```
+
+策略实验使用预注册的 20/60 日 SMA、每边 3 bps 手续费和 5 bps 滑点假设、
+同标的持有基准及独立 IS/OOS 窗口。审计记录包含实验所用行情、数据指纹和复现键。
+`as_of` 过滤抓取时间、财报发布日期、人工审核时点和未收盘日线。今天才抓取的
+缓存无法证明它在较早研究时点已可用，历史查询会显式报告该缺口。
+
+模型开关及费用配置见 `.env.example`。启用兼容服务时填写可信 HTTPS API 根路径
+（含提供商要求的版本路径）、模型、受控密钥和 USD 费率。预算按每次研究请求预留估算，
+多次调用的总限额由服务端供应商配额控制。可在变量前缀 `ENGINE_LLM_` 后加入
+`RESEARCH_`、`CHALLENGER_`、`RISK_REVIEW_`，分别覆盖角色的模型、价格、超时与
+Token 上限，另可通过角色的 `MODEL_VERSION` 绑定提供商返回的模型版本。
+
+[研究数据与估值口径](docs/V08_RESEARCH_INPUTS.md)包含每股指标、DCF 假设、ETF 净值及 OTW GET 配置。
+
+容器镜像为 `ai-investment-engine:0.8.0`。构建时传入 `ENGINE_GIT_SHA`，
+`GET /healthz` 和新研究报告会返回版本及 Git SHA，OpenAPI 使用同一版本。

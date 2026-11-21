@@ -5,15 +5,23 @@ import json
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 
 class OTWError(RuntimeError):
     pass
 
 
+class _NoRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class OTWReadClient:
-    def __init__(self, base_url: str, token: str, timeout: float = 20.0, transport: str = "rest"):
+    def __init__(
+        self, base_url: str, token: str, timeout: float = 20.0, transport: str = "rest",
+        *, follow_redirects: bool = True,
+    ):
         if not base_url:
             raise OTWError("OTW_BASE_URL is required for live mode")
         parts = urlsplit(base_url)
@@ -29,6 +37,7 @@ class OTWReadClient:
         self.token = token
         self.timeout = timeout
         self.transport = transport
+        self._opener = None if follow_redirects else build_opener(_NoRedirects())
 
     def _request(self, url: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -40,7 +49,8 @@ class OTWReadClient:
             headers["Content-Type"] = "application/json"
         request = Request(url, data=data, headers=headers, method="POST" if data is not None else "GET")
         try:
-            with urlopen(request, timeout=self.timeout) as resp:
+            open_request = self._opener.open if self._opener else urlopen
+            with open_request(request, timeout=self.timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
         except HTTPError as exc:
             detail = f"HTTP {exc.code}"

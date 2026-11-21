@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 WORKDIR /app
+ARG ENGINE_GIT_SHA
+LABEL org.opencontainers.image.revision=${ENGINE_GIT_SHA}
+ENV ENGINE_GIT_SHA=${ENGINE_GIT_SHA}
 ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY pyproject.toml ./
 COPY investment_engine ./investment_engine

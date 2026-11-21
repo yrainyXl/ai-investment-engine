@@ -4,8 +4,9 @@ services:
     build:
       context: .
       args:
+        ENGINE_GIT_SHA: ${ENGINE_GIT_SHA:-}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
-    image: ai-investment-engine:0.6
+    image: ai-investment-engine:0.8.0
     restart: unless-stopped
     env_file:
       - .env
